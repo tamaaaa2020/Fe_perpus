@@ -210,11 +210,12 @@ const AdminPetugasDashboard = () => {
   const [bookForm, setBookForm] = useState({
     title: "",
     author: "",
-    category_id: "",
-    isbn: "",
-    description: "",
+    publisher: "",
+    publish_year: "",
     stock: "",
+    description: "",
   });
+
   const [categoryForm, setCategoryForm] = useState({ name: "", description: "" });
   const [userForm, setUserForm] = useState({
     username: "",
@@ -290,7 +291,7 @@ const AdminPetugasDashboard = () => {
         author: book.author,
         category: book.category?.name || book.category || "-",
         category_id: book.category_id || book.category?.id,
-        isbn: book.isbn,
+        publish_year: book.publish_year,
         stock: book.stock ?? 0,
         available: book.available ?? book.stock ?? 0,
         created_at: book.created_at?.slice(0, 10),
@@ -298,7 +299,7 @@ const AdminPetugasDashboard = () => {
         image: book.image || book.cover,
         // Legacy mapping for compatibility
         nama_Barang: book.title,
-        kode_Barang: book.isbn || book.id,
+        kode_Barang: book.publish_year || book.id, // <-- Diubah menggunakan publish_year
         jumlah: book.stock || 0,
         id_kategori: book.category_id || book.category?.id,
         kategori_nama: book.category?.name || book.category,
@@ -414,8 +415,8 @@ const AdminPetugasDashboard = () => {
     setBookForm({
       title: "",
       author: "",
-      category_id: "",
-      isbn: "",
+      publisher: "",
+      publish_year: "",
       description: "",
       stock: "",
     });
@@ -570,11 +571,11 @@ const AdminPetugasDashboard = () => {
       const formData = new FormData();
       formData.append('title', bookForm.title);
       formData.append('author', bookForm.author);
-      formData.append('isbn', bookForm.isbn);
+      formData.append('publisher', bookForm.publisher);      
+      formData.append('publish_year', bookForm.publish_year); 
       formData.append('description', bookForm.description);
       formData.append('stock', Number(bookForm.stock || 0));
-      formData.append('category_id', bookForm.category_id);
-      
+          
       if (image) {
         formData.append('image', image);
       }
@@ -641,12 +642,13 @@ const AdminPetugasDashboard = () => {
     try {
       setSelectedItem(book);
       setBookForm({
-        title: book.title || '',
-        author: book.author || '',
-        category_id: book.category_id || '',
-        isbn: book.isbn || '',
-        description: book.description || '',
-        stock: String(book.stock || ''),
+        title: book.title ?? '',
+        author: book.author ?? '',
+        publisher: book.publisher ?? '', // Ditambahkan untuk kelengkapan
+        publish_year: book.publish_year ?? '',
+        category_id: book.category_id ?? '',
+        description: book.description ?? '',
+        stock: String(book.stock ?? 0), // Logika diperbaiki
       });
       
       // Set current image if exists
@@ -1103,7 +1105,7 @@ const AdminPetugasDashboard = () => {
                 <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Judul</th>
                 <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Penulis</th>
                 <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Kategori</th>
-                <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">ISBN</th>
+                <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">publish_year</th>
                 <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Stok</th>
                 <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Tersedia</th>
                 <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Aksi</th>
@@ -1131,7 +1133,7 @@ const AdminPetugasDashboard = () => {
                   <td className="px-6 py-4 text-sm text-slate-900 font-medium">{book.title}</td>
                   <td className="px-6 py-4 text-sm text-slate-600">{book.author}</td>
                   <td className="px-6 py-4 text-sm text-slate-600">{book.category}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{book.isbn}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600">{book.publish_year}</td>
                   <td className="px-6 py-4 text-sm text-slate-900">{book.stock}</td>
                   <td className="px-6 py-4 text-sm text-slate-900">{book.available}</td>
                   <td className="px-6 py-4">
@@ -1737,14 +1739,26 @@ const AdminPetugasDashboard = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-2">ISBN</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">publish_year</label>
                     <input
-                      type="text"
-                      value={bookForm.isbn}
-                      onChange={(e) => setBookForm({ ...bookForm, isbn: e.target.value })}
+                      type="number"
+                      value={bookForm.publish_year}
+                      onChange={(e) => setBookForm({ ...bookForm, publish_year: e.target.value })}
                       className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     />
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Publisher</label>
+                  <input
+                    type="text" 
+                    value={bookForm.publisher} 
+                    onChange={(e) =>
+                      setBookForm({ ...bookForm, publisher: e.target.value })
+                    }
+                    className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  />
                 </div>
 
                 <div>
