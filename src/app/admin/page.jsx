@@ -216,7 +216,7 @@ const AdminPetugasDashboard = () => {
     description: "",
   });
 
-  const [categoryForm, setCategoryForm] = useState({ name: "", description: "" });
+  const [categoryForm, setCategoryForm] = useState({ category_name: "", description: "" });
   const [userForm, setUserForm] = useState({
     username: "",
     email: "",
@@ -286,11 +286,11 @@ const AdminPetugasDashboard = () => {
       
       // Map to match existing structure
       const mappedBooks = bookList.map(book => ({
-        id: book.id,
+        id: book.id_book,
         title: book.title,
         author: book.author,
-        category: book.category?.name || book.category || "-",
-        category_id: book.category_id || book.category?.id,
+        category: book.category?.name || book.category_name || "-",
+        category_id: book.category_id || book.category?.id_category,
         publish_year: book.publish_year,
         stock: book.stock ?? 0,
         available: book.available ?? book.stock ?? 0,
@@ -299,10 +299,10 @@ const AdminPetugasDashboard = () => {
         image: book.image || book.cover,
         // Legacy mapping for compatibility
         nama_Barang: book.title,
-        kode_Barang: book.publish_year || book.id, // <-- Diubah menggunakan publish_year
+        kode_Barang: book.publish_year || book.id_book, // <-- Diubah menggunakan publish_year
         jumlah: book.stock || 0,
-        id_kategori: book.category_id || book.category?.id,
-        kategori_nama: book.category?.name || book.category,
+        id_kategori: book.category_id || book.category?.id_category,
+        kategori_nama: book.category?.name || book.category_name,
         gambar_barang: book.image || book.cover,
       }));
       
@@ -485,23 +485,26 @@ const AdminPetugasDashboard = () => {
       }
 
       // loans (petugas only)
-      if (role === "petugas") {
+      if (role === "petugas" || role === "admin") {
         try {
-          const resp = await api("/loans", { token });
+          const endpoint = role === "admin" ? "/admin/loans" : "/petugas/loans";
+          const resp = await api(endpoint, { token });
           const list = Array.isArray(resp?.data) ? resp.data : resp;
           setLoans(
             (list || []).map((l) => ({
-              id: l.id,
+              id: l.id_loan,
               user_name: l.user?.nama_lengkap || l.user?.username || "-",
               book_title: l.book?.title || "-",
-              loan_date: (l.loan_date || l.created_at || "").slice(0, 10),
+              loan_date: (l.tanggal_peminjaman || l.created_at || "").slice(0, 10),
               due_date: (l.due_date || "").slice(0, 10),
-              return_date: l.return_date ? l.return_date.slice(0, 10) : null,
-              status: l.status || "pending",
-              fine: l.fine ?? 0,
+              return_date: l.tanggal_pengembalian ? l.return_date.slice(0, 10) : null,
+              status: l.status_peminjaman || "pending",
+              fine: l.denda ?? 0,
             }))
           );
-        } catch (e) {}
+        } catch (e) {
+          console.log("Failed to Fetch Loans:", e);
+        }
       }
 
       setIsLoading(false);
@@ -675,19 +678,19 @@ const AdminPetugasDashboard = () => {
         await api(`/admin/categories/${selectedItem.id}`, {
           method: "PUT",
           token,
-          body: { ...categoryForm },
+          body: categoryForm,
         });
       } else {
         await api(`/admin/categories`, {
           method: "POST",
           token,
-          body: { ...categoryForm },
+          body: categoryForm,
         });
       }
       
       await fetchKategori(); // Refresh list
       setShowModal(null);
-      setCategoryForm({ name: "", description: "" });
+      setCategoryForm({ category_name: "", description: "" });
       setSelectedItem(null);
       setSuccessMsg("Kategori berhasil disimpan");
       setTimeout(() => setSuccessMsg(''), 3000);
@@ -782,35 +785,66 @@ const AdminPetugasDashboard = () => {
   };
 
   const generateReport = async (type) => {
-    try {
-      if (type.startsWith("peminjaman")) {
-        const out = await api("/reports/loans", { token });
-        if (out instanceof Blob) {
-          downloadBlob(out, `laporan-${type}.pdf`); // sesuaikan ekstensi sesuai backend
-          return;
-        }
-        setSuccessMsg("Laporan peminjaman diminta. Cek backend format file.");
-        setTimeout(() => setSuccessMsg(''), 3000);
-        return;
-      }
+  try {
+    let endpoint = "";
 
-      if (["inventori-buku", "popularitas-buku", "kategori-statistik"].includes(type)) {
-        const out = await api("/admin/reports/books", { token });
-        if (out instanceof Blob) {
-          downloadBlob(out, `laporan-${type}.pdf`);
-          return;
-        }
-        setSuccessMsg("Laporan buku diminta. Cek backend format file.");
-        setTimeout(() => setSuccessMsg(''), 3000);
-        return;
-      }
-
-      setErrorMsg("Jenis laporan belum dipetakan.");
-    } catch (e) {
-      setErrorMsg(e?.data?.message || e.message || "Gagal generate laporan");
+    // =====================
+    // Laporan Peminjaman
+    // =====================
+    if (["peminjaman-harian", "peminjaman-bulanan", "peminjaman-tahunan"].includes(type)) {
+      endpoint = `/petugas/reports/loans?type=${type.split("-")[1]}`;
     }
-  };
 
+    // =====================
+    // Laporan Denda
+    // =====================
+    else if (["denda-bulanan", "keterlambatan", "rusak", "hilang"].includes(type)) {
+      const fineType = type === "denda-bulanan" ? "bulanan" : type; 
+      endpoint = `/petugas/reports/fines?type=${fineType}`;
+    }
+
+    // =====================
+    // Laporan Buku (Admin)
+    // =====================
+    else if (type === "inventori-buku") {
+      endpoint = `/admin/reports/books`; // semua buku
+    } 
+    else if (type === "popularitas-buku") {
+      endpoint = `/admin/reports/books/popular`; // buku populer by rating
+    } 
+    else if (type === "kategori-statistik") {
+      endpoint = `/admin/reports/books/category-stats`; // statistik kategori
+    }
+
+    if (!endpoint) throw new Error(`Unknown report type: ${type}`);
+
+    const res = await fetch(`${API_BASE}${endpoint}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!res.ok) {
+      throw new Error(`Gagal generate laporan: ${res.status}`);
+    }
+
+    // Expecting PDF Blob
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `laporan-${type}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+
+    setSuccessMsg(`Laporan ${type} berhasil digenerate`);
+    setTimeout(() => setSuccessMsg(""), 3000);
+  } catch (e) {
+    console.error("Generate report error:", e);
+    setErrorMsg(e?.data?.message || e.message || "Gagal generate laporan");
+    setTimeout(() => setErrorMsg(""), 3000);
+  }
+};
   if (!ready || isLoading) return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white flex items-center justify-center">
       <div className="text-center">
@@ -1113,7 +1147,7 @@ const AdminPetugasDashboard = () => {
             </thead>
             <tbody className="divide-y divide-slate-200">
               {books.map((book) => (
-                <tr key={book.id} className="hover:bg-slate-50">
+                <tr key={book.id_book} className="hover:bg-slate-50">
                   <td className="px-6 py-4">
                     {book.image || book.gambar_barang ? (
                       <img
@@ -1132,7 +1166,7 @@ const AdminPetugasDashboard = () => {
                   </td>
                   <td className="px-6 py-4 text-sm text-slate-900 font-medium">{book.title}</td>
                   <td className="px-6 py-4 text-sm text-slate-600">{book.author}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{book.category}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600">{book.category?.category_name}</td>
                   <td className="px-6 py-4 text-sm text-slate-600">{book.publish_year}</td>
                   <td className="px-6 py-4 text-sm text-slate-900">{book.stock}</td>
                   <td className="px-6 py-4 text-sm text-slate-900">{book.available}</td>
@@ -1146,7 +1180,7 @@ const AdminPetugasDashboard = () => {
                         <Edit className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => deleteBook(book.id)}
+                        onClick={() => deleteBook(book.id_book)}
                         className="p-1 text-red-600 hover:bg-red-50 rounded"
                         title="Hapus"
                       >
@@ -1200,7 +1234,7 @@ const AdminPetugasDashboard = () => {
           <button
             onClick={() => {
               setSelectedItem(null);
-              setCategoryForm({ name: "", description: "" });
+              setCategoryForm({ category_name: "", description: "" });
               setShowModal("category");
             }}
             className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors"
@@ -1254,14 +1288,14 @@ const AdminPetugasDashboard = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {categories.map((category) => (
-          <div key={category.id} className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
+          <div key={category.id || category.id_category} className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
             <div className="flex justify-between items-start mb-4">
-              <h3 className="text-lg font-semibold text-slate-900">{category.name}</h3>
+              <h3 className="text-lg font-semibold text-slate-900">{category.name || category.category_name}</h3>
               <div className="flex space-x-2">
                 <button
                   onClick={() => {
                     setSelectedItem(category);
-                    setCategoryForm({ name: category.name, description: category.description });
+                    setCategoryForm({ category_name: category.name || category.category_name, description: category.description });
                     setShowModal("category");
                   }}
                   className="p-1 text-blue-600 hover:bg-blue-50 rounded"
@@ -1293,7 +1327,7 @@ const AdminPetugasDashboard = () => {
             <button
               onClick={() => {
                 setSelectedItem(null);
-                setCategoryForm({ name: "", description: "" });
+                setCategoryForm({ category_name: "", description: "" });
                 setShowModal("category");
               }}
               className="inline-flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors"
@@ -1612,6 +1646,24 @@ const AdminPetugasDashboard = () => {
                 <Download className="w-4 h-4 text-slate-400" />
               </div>
             </button>
+            <button
+              onClick={() => generateReport("kerusakan")}
+              className="w-full px-4 py-2 text-left border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-slate-900">Data Kerusakan</span>
+                <Download className="w-4 h-4 text-slate-400" />
+              </div>
+            </button>
+            <button
+              onClick={() => generateReport("kehilangan")}
+              className="w-full px-4 py-2 text-left border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-slate-900">Data Kehilangan</span>
+                <Download className="w-4 h-4 text-slate-400" />
+              </div>
+            </button>
           </div>
         </div>
       </div>
@@ -1818,8 +1870,8 @@ const AdminPetugasDashboard = () => {
                   <label className="block text-sm font-medium text-slate-700 mb-2">Nama Kategori</label>
                   <input
                     type="text"
-                    value={categoryForm.name}
-                    onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
+                    value={categoryForm.category_name}
+                    onChange={(e) => setCategoryForm({ ...categoryForm, category_name: e.target.value })}
                     className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                   />
                 </div>
@@ -1827,7 +1879,7 @@ const AdminPetugasDashboard = () => {
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">Deskripsi</label>
                   <textarea
-                    value={categoryForm.description}
+                    value={categoryForm.description || ""}
                     onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })}
                     rows={3}
                     className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
