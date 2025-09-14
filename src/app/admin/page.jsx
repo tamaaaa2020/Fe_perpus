@@ -777,6 +777,24 @@ const AdminPetugasDashboard = () => {
     }
   };
 
+  // ✅ Tambahan: Ban User
+  const banUser = async (userId) => {
+    const confirmBan = confirm('Yakin ingin membanned user ini?');
+    if (!confirmBan) return;
+
+    try {
+      await api(`/admin/users/${userId}/ban`, { method: "PUT", token });
+      setUsers((list) =>
+        list.map((u) => (u.id === userId ? { ...u, role: "banned" } : u))
+      );
+      setSuccessMsg("User berhasil dibanned");
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } catch (e) {
+      console.error("Ban User Error:", e);
+      setErrorMsg(e?.data?.message || "Gagal membanned user");
+    }
+  };
+
   /* ===== Reports ===== */
   const deleteReportedReview = async (reviewId) => {
     // belum ada endpoint list/delete di backend
@@ -1393,6 +1411,7 @@ const renderUsers = () => {
           <option value="admin">Admin</option>
           <option value="petugas">Petugas</option>
           <option value="user">User</option>
+          <option value="banned">Banned</option> {/* ✅ Tambahan filter */}
         </select>
       </div>
 
@@ -1433,10 +1452,18 @@ const renderUsers = () => {
                             ? "bg-red-100 text-red-700"
                             : user.role === "petugas"
                             ? "bg-blue-100 text-blue-700"
+                            : user.role === "banned"
+                            ? "bg-black text-white" // ✅ Badge banned
                             : "bg-gray-100 text-gray-700"
                         }`}
                       >
-                        {user.role === "admin" ? "Admin" : user.role === "petugas" ? "Petugas" : "User"}
+                        {user.role === "admin"
+                          ? "Admin"
+                          : user.role === "petugas"
+                          ? "Petugas"
+                          : user.role === "banned"
+                          ? "Banned"
+                          : "User"}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-900">{user.active_loans}</td>
@@ -1456,15 +1483,26 @@ const renderUsers = () => {
                             setShowModal("user");
                           }}
                           className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                          title="Edit"
                         >
                           <Edit className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => deleteUser(user.id)}
                           className="p-1 text-red-600 hover:bg-red-50 rounded"
+                          title="Hapus"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
+                        {user.role !== "banned" && (
+                          <button
+                            onClick={() => banUser(user.id)}
+                            className="p-1 text-orange-600 hover:bg-orange-50 rounded"
+                            title="Ban User"
+                          >
+                            <Flag className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
