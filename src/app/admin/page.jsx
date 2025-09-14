@@ -474,6 +474,8 @@ const AdminPetugasDashboard = () => {
               email: u.email,
               role: (u.role || "").toLowerCase(),
               active_loans: u.active_loans ?? 0,
+              overdue_loans: u.overdue_loans ?? 0,
+              returned_loans: u.returned_loans ?? 0,
               created_at: u.created_at?.slice(0, 10),
             }))
           );
@@ -1425,6 +1427,8 @@ const renderUsers = () => {
                 <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Email</th>
                 <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Role</th>
                 <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Peminjaman Aktif</th>
+                <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Overdue</th>
+                <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Returned</th>
                 <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Bergabung</th>
                 <th className="px-6 py-4 text-left text-sm font-medium text-slate-900">Aksi</th>
               </tr>
@@ -1467,6 +1471,8 @@ const renderUsers = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-900">{user.active_loans}</td>
+                    <td className="px-6 py-4 text-sm text-slate-900">{user.overdue_loans}</td>
+                    <td className="px-6 py-4 text-sm text-slate-900">{user.returned_loans}</td>
                     <td className="px-6 py-4 text-sm text-slate-600">{user.created_at}</td>
                     <td className="px-6 py-4">
                       <div className="flex space-x-2">
