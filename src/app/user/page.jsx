@@ -58,33 +58,69 @@ const Dashboard = () => {
   }, []);
 
   const [borrowHistory, setBorrowHistory] = useState([]);
-  const [favorites, setFavorites] = useState([]);
   const [reviews, setReviews] = useState([]);
 
   // functions (dummy, nanti ganti API)
   const borrowBook = async (bookId) => {
     alert(`Buku berhasil dipinjam! (Book ID: ${bookId})`);
     setBooks(books.map(book => 
-      book.id_book === bookId ? { ...book, stock: book.stock - 1 } : book
+      book.id === bookId ? { ...book, stock: book.stock - 1 } : book
     ));
   };
 
   const toggleFavorite = async (bookId) => {
-    const isFavorite = favorites.includes(bookId);
-    if (isFavorite) {
-      setFavorites(favorites.filter(id => id !== bookId));
-      alert('Buku dihapus dari koleksi favorit');
-    } else {
-      setFavorites([...favorites, bookId]);
-      alert('Buku ditambahkan ke koleksi favorit');
+    try {
+      const res = await fetch(`http://localhost:8000/api/collections/${bookId}`,{
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      if(!res.ok) throw new Error("Gagal Update Favorite");
+      const data = await res.json();
+
+      fetchCollections();
+      alert(data.message);
+    } catch (err) {
+      console.error(err);
+      alert("Terjadi Kesalahan Saat Update Favorite");
     }
   };
+
+  const [collections, setCollections] = useState([]);
+
+  
+const isFavorites = (bookId) => {
+  return collections.some((item) => item.book?.id === bookId);
+};
+
+  const fetchCollections = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/api/collections", {
+        headers: {
+          Authorization:`Bearer ${localStorage.getItem("token")}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      if(!res.ok) throw new Error("Gagal fetch Favorite");
+      const data = await res.json();
+      setCollections(data);
+    } catch (err) {
+      console.log(err);
+    }
+  };
+
+  useEffect(() => {
+  fetchCollections();
+}, []);
+
 
   const submitRating = async () => {
     const newReview = {
       id: reviews.length + 1,
       book_id: showRatingModal,
-      book_title: books.find(b => b.id_book === showRatingModal)?.title,
+      book_title: books.find(b => b.id === showRatingModal)?.title,
       user_name: "Saya",
       rating: userRating,
       review: userReview,
@@ -118,8 +154,6 @@ const Dashboard = () => {
     return matchesSearch && matchesCategory;
   });
 
-  const favoriteBooks = books.filter(book => favorites.includes(book.id_book));
-
   const renderStars = (rating = 0, interactive = false, onRate = null) => {
     return (
       <div className="flex items-center space-x-1">
@@ -143,6 +177,41 @@ const Dashboard = () => {
       </div>
     );
   };
+
+  const renderFavorites = () => (
+  <div className="space-y-6">
+    <div className="flex items-center justify-between">
+      <h3 className="text-xl font-semibold text-slate-900">Koleksi Favorit</h3>
+      <span className="text-slate-600">{collections.length} buku</span>
+    </div>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {collections.map(item => {
+        const book = item.book;
+        return (
+          <div key={item.id_collection} className="bg-white rounded-2xl shadow-lg border">
+            <div className="aspect-[3/4]">
+              <img
+                src={book.cover || "https://via.placeholder.com/200x300"}
+                alt={book.title}
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <div className="p-4">
+              <h3 className="font-semibold">{book.title}</h3>
+              <p className="text-sm text-slate-600">{book.author}</p>
+              <button
+                onClick={() => toggleFavorite(book.id)}
+                className="mt-3 px-3 py-1 bg-red-500 text-white rounded-lg"
+              >
+                Hapus dari Koleksi
+              </button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  </div>
+);
 
   const renderBooks = () => (
     <div className="space-y-6">
@@ -181,7 +250,7 @@ const Dashboard = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredBooks.map(book => (
-            <div key={book.id_book} className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden hover:shadow-xl transition-shadow">
+            <div key={book.id} className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden hover:shadow-xl transition-shadow">
               <div className="aspect-[3/4] relative overflow-hidden">
                 <img 
                   src={book.cover_url || "https://via.placeholder.com/200x300"}
@@ -190,14 +259,14 @@ const Dashboard = () => {
                 />
                 <div className="absolute top-3 right-3">
                   <button
-                    onClick={() => toggleFavorite(book.id_book)}
+                    onClick={() => toggleFavorite(book.id)}
                     className={`p-2 rounded-full ${
-                      favorites.includes(book.id_book)
+                      isFavorites(book.id)
                         ? 'bg-red-500 text-white'
                         : 'bg-white/80 text-slate-600 hover:bg-red-500 hover:text-white'
                     } transition-colors`}
                   >
-                    <Heart className={`w-4 h-4 ${favorites.includes(book.id_book) ? 'fill-current' : ''}`} />
+                    <Heart className={`w-4 h-4 ${isFavorites(book.id) ? 'fill-current' : ''}`} />
                   </button>
                 </div>
               </div>
@@ -225,7 +294,7 @@ const Dashboard = () => {
                     </button>
                     {book.stock > 0 && (
                       <button
-                        onClick={() => borrowBook(book.id_book)}
+                        onClick={() => borrowBook(book.id)}
                         className="px-3 py-1 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors"
                       >
                         Pinjam
@@ -300,6 +369,7 @@ const Dashboard = () => {
         {/* Content */}
         <div className="space-y-8">
           {activeTab === 'books' && renderBooks()}
+          {activeTab === 'favorites' && renderFavorites()} 
           {/* history, favorites, reviews render bisa tetap pake dummy dulu */}
         </div>
       </div>
