@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo } from "react";
 import { Plus, Edit, Trash2, Search, Filter } from "lucide-react";
 
 export default function Users({
@@ -10,7 +10,7 @@ export default function Users({
   const [searchUsername, setSearchUsername] = useState("");
   const [filterRole, setFilterRole] = useState("all");
 
-  // Filter users based on search and role filter
+  // Filter users berdasarkan search + role filter
   const filteredUsers = useMemo(() => {
     return users.filter((user) => {
       const matchesUsername = user.username
@@ -21,9 +21,9 @@ export default function Users({
     });
   }, [users, searchUsername, filterRole]);
 
-  // Get unique roles for filter dropdown
+  // Unique roles untuk filter dropdown
   const roles = useMemo(() => {
-    const uniqueRoles = [...new Set(users.map(user => user.role))];
+    const uniqueRoles = [...new Set(users.map((user) => user.role))];
     return uniqueRoles;
   }, [users]);
 
@@ -43,9 +43,9 @@ export default function Users({
           </button>
         </div>
 
-        {/* Search and Filter Section */}
+        {/* Search & Filter */}
         <div className="flex flex-col sm:flex-row gap-4">
-          {/* Search by Username */}
+          {/* Search */}
           <div className="relative flex-1">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <Search className="h-4 w-4 text-slate-400" />
@@ -59,7 +59,7 @@ export default function Users({
             />
           </div>
 
-          {/* Filter by Role */}
+          {/* Filter role */}
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <Filter className="h-4 w-4 text-slate-400" />
@@ -79,24 +79,21 @@ export default function Users({
           </div>
         </div>
 
-        {/* Results Count */}
+        {/* Hasil filter */}
         {(searchUsername || filterRole !== "all") && (
           <div className="mt-3 text-sm text-slate-600">
             Menampilkan {filteredUsers.length} dari {users.length} user
             {searchUsername && (
-              <span className="ml-1">
-                untuk "{searchUsername}"
-              </span>
+              <span className="ml-1">untuk "{searchUsername}"</span>
             )}
             {filterRole !== "all" && (
-              <span className="ml-1">
-                dengan role "{filterRole}"
-              </span>
+              <span className="ml-1">dengan role "{filterRole}"</span>
             )}
           </div>
         )}
       </div>
 
+      {/* Tabel Users */}
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead className="bg-slate-50">
@@ -115,17 +112,26 @@ export default function Users({
                 <td className="px-6 py-4 text-sm">{u.nama_lengkap}</td>
                 <td className="px-6 py-4 text-sm">{u.email}</td>
                 <td className="px-6 py-4 text-sm">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    u.role === 'admin' 
-                      ? 'bg-violet-100 text-violet-800'
-                      : u.role === 'petugas'
-                      ? 'bg-blue-100 text-blue-800'
-                      : 'bg-green-100 text-green-800'
-                  }`}>
-                    {u.role}
-                  </span>
+                  {u.is_banned ? (
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                      Banned
+                    </span>
+                  ) : (
+                    <span
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        u.role === "admin"
+                          ? "bg-violet-100 text-violet-800"
+                          : u.role === "petugas"
+                          ? "bg-blue-100 text-blue-800"
+                          : "bg-green-100 text-green-800"
+                      }`}
+                    >
+                      {u.role}
+                    </span>
+                  )}
                 </td>
                 <td className="px-6 py-4 flex items-center gap-3">
+                  {/* Edit */}
                   <button
                     onClick={() => {
                       setSelectedItem(u);
@@ -136,6 +142,8 @@ export default function Users({
                   >
                     <Edit className="w-4 h-4" />
                   </button>
+
+                  {/* Delete */}
                   <button
                     onClick={() => {
                       if (confirm("Yakin hapus user ini?")) {
@@ -148,6 +156,26 @@ export default function Users({
                     title="Hapus User"
                   >
                     <Trash2 className="w-4 h-4" />
+                  </button>
+
+                  {/* Banned / Unbanned */}
+                  <button
+                    onClick={() => {
+                      setUsers((prev) =>
+                        prev.map((usr) =>
+                          usr.id_user === u.id_user
+                            ? { ...usr, is_banned: !usr.is_banned }
+                            : usr
+                        )
+                      );
+                    }}
+                    className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
+                      u.is_banned
+                        ? "bg-green-100 text-green-700 hover:bg-green-200"
+                        : "bg-red-100 text-red-700 hover:bg-red-200"
+                    }`}
+                  >
+                    {u.is_banned ? "Unbanned" : "Banned"}
                   </button>
                 </td>
               </tr>
@@ -176,10 +204,7 @@ export default function Users({
             )}
             {users.length === 0 && (
               <tr>
-                <td
-                  colSpan={5}
-                  className="px-6 py-8 text-center text-slate-500"
-                >
+                <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
                   Belum ada user.
                 </td>
               </tr>
