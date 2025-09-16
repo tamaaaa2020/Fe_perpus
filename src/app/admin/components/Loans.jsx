@@ -1,18 +1,44 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Search, CheckCircle, XCircle, PackageCheck } from "lucide-react";
 import { formatRupiah } from "@/lib/utils";
 
-export default function Loans({
-  loans,
-  searchTerm,
-  filterStatus,
-  setSearchTerm,
-  setFilterStatus,
-  setErrorMsg,
-  setSuccessMsg,
-  role,
-}) {
+export default function Loans({ role }) {
+  const [loans, setLoans] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [errorMsg, setErrorMsg] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
+
+  const getBaseUrl = () => {
+    if (role === "admin") return "http://localhost:8000/api/admin/loans";
+    if (role === "petugas") return "http://localhost:8000/api/petugas/loans";
+    return "http://localhost:8000/api/my-loans"; // default user
+  };
+
+  const fetchLoans = async () => {
+    try {
+      const url = `${getBaseUrl()}?search=${searchTerm}&status=${filterStatus}`;
+      const res = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`, // kalau pakai auth
+        },
+      });
+
+      if (!res.ok) throw new Error("Gagal fetch data");
+      const data = await res.json();
+      setLoans(data);
+    } catch (err) {
+      console.error(err);
+      setErrorMsg("Gagal ambil data peminjaman");
+    }
+  };
+
+  useEffect(() => {
+    fetchLoans();
+  }, [searchTerm, filterStatus, role]);
+
   const formatDate = (dateStr) => {
     if (!dateStr) return "-";
     return new Date(dateStr).toLocaleDateString("id-ID");
@@ -101,7 +127,9 @@ export default function Loans({
                     {loan.user?.nama_lengkap || loan.user?.username}
                   </td>
                   <td className="px-6 py-4 text-sm">{loan.book?.title}</td>
-                  <td className="px-6 py-4 text-sm">{formatDate(loan.tanggal_peminjaman)}</td>
+                  <td className="px-6 py-4 text-sm">
+                    {formatDate(loan.tanggal_peminjaman)}
+                  </td>
                   <td className="px-6 py-4 text-sm">{formatDate(loan.due_date)}</td>
                   <td className="px-6 py-4">{statusBadge(loan.status_peminjaman)}</td>
                   <td className="px-6 py-4 text-sm">
@@ -109,21 +137,23 @@ export default function Loans({
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
-                      {role === "petugas" && loan.status_peminjaman === "pending" && (
-                        <>
-                          <button className="p-1 text-green-600 hover:bg-green-50 rounded">
-                            <CheckCircle className="w-4 h-4" />
+                      {role === "petugas" &&
+                        loan.status_peminjaman === "pending" && (
+                          <>
+                            <button className="p-1 text-green-600 hover:bg-green-50 rounded">
+                              <CheckCircle className="w-4 h-4" />
+                            </button>
+                            <button className="p-1 text-red-600 hover:bg-red-50 rounded">
+                              <XCircle className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
+                      {role === "petugas" &&
+                        loan.status_peminjaman === "siap_diambil" && (
+                          <button className="p-1 text-emerald-600 hover:bg-emerald-50 rounded">
+                            <PackageCheck className="w-4 h-4" />
                           </button>
-                          <button className="p-1 text-red-600 hover:bg-red-50 rounded">
-                            <XCircle className="w-4 h-4" />
-                          </button>
-                        </>
-                      )}
-                      {role === "petugas" && loan.status_peminjaman === "siap_diambil" && (
-                        <button className="p-1 text-emerald-600 hover:bg-emerald-50 rounded">
-                          <PackageCheck className="w-4 h-4" />
-                        </button>
-                      )}
+                        )}
                     </div>
                   </td>
                 </tr>
