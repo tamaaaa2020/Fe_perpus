@@ -95,12 +95,31 @@ const Dashboard = () => {
   const [collections, setCollections] = useState([]);
 
   const borrowBook = async (bookId) => {
-    alert(`Buku berhasil dipinjam! (Book ID: ${bookId})`);
-    setBooks(
-      books.map((book) =>
-        book.id === bookId ? { ...book, stock: book.stock - 1 } : book
+    try {
+      const res = await fetch("http://localhost:8000/api/loans", {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({id_book: bookId}),
+      });
+      const data = await res.json();
+      if(!res.ok){
+        alert(data?.message || "Gagal meminjam buku");
+        return;
+      }
+      alert(data.message);
+
+      setBooks((prev) =>
+      prev.map((book) =>
+        book.id === bookId ? {...book, stock: book.stock - 1} : book
       )
     );
+    } catch (err) {
+      console.error(err);
+      alert("Terjadi Kesalahan jaringan saat meminjam buku");
+    }
   };
 
   const toggleFavorite = async (bookId) => {
