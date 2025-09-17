@@ -3,42 +3,20 @@
 import { useState, useEffect } from "react";
 import { Search, CheckCircle, XCircle, PackageCheck } from "lucide-react";
 import { formatRupiah } from "@/lib/utils";
+import { fetchWithAuth } from "@/lib/api";
 
-export default function Loans({ role }) {
-  const [loans, setLoans] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [errorMsg, setErrorMsg] = useState("");
-  const [successMsg, setSuccessMsg] = useState("");
-
-  const getBaseUrl = () => {
-    if (role === "admin") return "http://localhost:8000/api/admin/loans";
-    if (role === "petugas") return "http://localhost:8000/api/petugas/loans";
-    return "http://localhost:8000/api/my-loans"; // default user
-  };
-
-  const fetchLoans = async () => {
-    try {
-      const url = `${getBaseUrl()}?search=${searchTerm}&status=${filterStatus}`;
-      const res = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`, // kalau pakai auth
-        },
-      });
-
-      if (!res.ok) throw new Error("Gagal fetch data");
-      const data = await res.json();
-      setLoans(data);
-    } catch (err) {
-      console.error(err);
-      setErrorMsg("Gagal ambil data peminjaman");
-    }
-  };
-
-  useEffect(() => {
-    fetchLoans();
-  }, [searchTerm, filterStatus, role]);
-
+export default function Loans({
+  loans,
+  searchTerm,
+  filterStatus,
+  setSearchTerm,
+  setFilterStatus,
+  setErrorMsg,
+  setSuccessMsg,
+  role,
+  token, // pastikan token dipass dari parent
+  reloadLoans, // function dari parent buat refresh data
+}) {
   const formatDate = (dateStr) => {
     if (!dateStr) return "-";
     return new Date(dateStr).toLocaleDateString("id-ID");
@@ -64,6 +42,39 @@ export default function Loans({ role }) {
         {status?.replace("_", " ")?.toUpperCase()}
       </span>
     );
+  };
+
+  // === aksi petugas ===
+  const handleAction = async (loanId, action) => {
+    try {
+      let path = "";
+      let method = "PUT";
+
+      switch (action) {
+        case "approve":
+          path = `/petugas/loans/${loanId}/validate`;
+          break;
+        case "reject":
+          path = `/petugas/loan/${loanId}/reject`;
+          method = "POST";
+          break;
+        case "pickup":
+          path = `/petugas/loans/${loanId}/pickup`;
+          break;
+        case "return":
+          path = `/petugas/loans/${loanId}/return`;
+          break;
+        default:
+          return;
+      }
+
+      await fetchWithAuth(path, token, { method });
+      setSuccessMsg(`Berhasil ${action} peminjaman.`);
+      reloadLoans && reloadLoans();
+    } catch (err) {
+      console.error(err);
+      setErrorMsg(`Gagal ${action} peminjaman.`);
+    }
   };
 
   return (
@@ -103,7 +114,7 @@ export default function Loans({ role }) {
           <h3 className="text-lg font-semibold">Daftar Peminjaman</h3>
           {role === "petugas" && (
             <div className="text-xs text-slate-500">
-              Aksi: Approve / Pickup / Return
+              Aksi: Approve / Reject / Pickup / Return
             </div>
           )}
         </div>
@@ -131,36 +142,56 @@ export default function Loans({ role }) {
                     {formatDate(loan.tanggal_peminjaman)}
                   </td>
                   <td className="px-6 py-4 text-sm">{formatDate(loan.due_date)}</td>
-                  <td className="px-6 py-4">{statusBadge(loan.status_peminjaman)}</td>
+                  <td className="px-6 py-4">
+                    {statusBadge(loan.status_peminjaman)}
+                  </td>
                   <td className="px-6 py-4 text-sm">
                     {loan.denda > 0 ? formatRupiah(loan.denda) : "-"}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
-                      {role === "petugas" &&
-                        loan.status_peminjaman === "pending" && (
-                          <>
-                            <button className="p-1 text-green-600 hover:bg-green-50 rounded">
-                              <CheckCircle className="w-4 h-4" />
-                            </button>
-                            <button className="p-1 text-red-600 hover:bg-red-50 rounded">
-                              <XCircle className="w-4 h-4" />
-                            </button>
-                          </>
-                        )}
-                      {role === "petugas" &&
-                        loan.status_peminjaman === "siap_diambil" && (
-                          <button className="p-1 text-emerald-600 hover:bg-emerald-50 rounded">
-                            <PackageCheck className="w-4 h-4" />
+                      {role === "petugas" && loan.status_peminjaman === "pending" && (
+                        <>
+                          <button
+                            onClick={() => handleAction(loan.id_loan, "approve")}
+                            className="p-1 text-green-600 hover:bg-green-50 rounded"
+                          >
+                            <CheckCircle className="w-4 h-4" />
                           </button>
-                        )}
+                          <button
+                            onClick={() => handleAction(loan.id_loan, "reject")}
+                            className="p-1 text-red-600 hover:bg-red-50 rounded"
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
+                      {role === "petugas" && loan.status_peminjaman === "siap_diambil" && (
+                        <button
+                          onClick={() => handleAction(loan.id_loan, "pickup")}
+                          className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
+                        >
+                          <PackageCheck className="w-4 h-4" />
+                        </button>
+                      )}
+                      {role === "petugas" && loan.status_peminjaman === "dipinjam" && (
+                        <button
+                          onClick={() => handleAction(loan.id_loan, "return")}
+                          className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                        >
+                          Return
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
               ))}
               {loans.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-slate-500">
+                  <td
+                    colSpan={7}
+                    className="px-6 py-8 text-center text-slate-500"
+                  >
                     Belum ada data peminjaman.
                   </td>
                 </tr>

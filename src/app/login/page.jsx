@@ -112,7 +112,7 @@ const Login = () => {
                 <div className="w-10 h-10 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl flex items-center justify-center">
                   <Globe className="w-6 h-6 text-white" />
                 </div>
-                <span className="text-2xl font-bold text-slate-800">E Perpus</span>
+                <span className="text-2xl font-bold text-slate-800">Pocket  library</span>
               </div>
               <h2 className="text-2xl font-bold text-slate-900 mb-2">Selamat Datang Kembali</h2>
               <p className="text-slate-600">Masuk ke akun Anda untuk melanjutkan</p>
