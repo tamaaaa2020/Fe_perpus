@@ -2,6 +2,7 @@
 
 import { Search, CheckCircle, XCircle, PackageCheck } from "lucide-react";
 import { formatRupiah } from "@/lib/utils";
+import { fetchWithAuth } from "@/lib/api";
 
 export default function Loans({
   loans,
@@ -12,6 +13,8 @@ export default function Loans({
   setErrorMsg,
   setSuccessMsg,
   role,
+  token, // pastikan token dipass dari parent
+  reloadLoans, // function dari parent buat refresh data
 }) {
   const formatDate = (dateStr) => {
     if (!dateStr) return "-";
@@ -38,6 +41,39 @@ export default function Loans({
         {status?.replace("_", " ")?.toUpperCase()}
       </span>
     );
+  };
+
+  // === aksi petugas ===
+  const handleAction = async (loanId, action) => {
+    try {
+      let path = "";
+      let method = "PUT";
+
+      switch (action) {
+        case "approve":
+          path = `/petugas/loans/${loanId}/validate`;
+          break;
+        case "reject":
+          path = `/petugas/loan/${loanId}/reject`;
+          method = "POST";
+          break;
+        case "pickup":
+          path = `/petugas/loans/${loanId}/pickup`;
+          break;
+        case "return":
+          path = `/petugas/loans/${loanId}/return`;
+          break;
+        default:
+          return;
+      }
+
+      await fetchWithAuth(path, token, { method });
+      setSuccessMsg(`Berhasil ${action} peminjaman.`);
+      reloadLoans && reloadLoans();
+    } catch (err) {
+      console.error(err);
+      setErrorMsg(`Gagal ${action} peminjaman.`);
+    }
   };
 
   return (
@@ -77,7 +113,7 @@ export default function Loans({
           <h3 className="text-lg font-semibold">Daftar Peminjaman</h3>
           {role === "petugas" && (
             <div className="text-xs text-slate-500">
-              Aksi: Approve / Pickup / Return
+              Aksi: Approve / Reject / Pickup / Return
             </div>
           )}
         </div>
@@ -101,9 +137,13 @@ export default function Loans({
                     {loan.user?.nama_lengkap || loan.user?.username}
                   </td>
                   <td className="px-6 py-4 text-sm">{loan.book?.title}</td>
-                  <td className="px-6 py-4 text-sm">{formatDate(loan.tanggal_peminjaman)}</td>
+                  <td className="px-6 py-4 text-sm">
+                    {formatDate(loan.tanggal_peminjaman)}
+                  </td>
                   <td className="px-6 py-4 text-sm">{formatDate(loan.due_date)}</td>
-                  <td className="px-6 py-4">{statusBadge(loan.status_peminjaman)}</td>
+                  <td className="px-6 py-4">
+                    {statusBadge(loan.status_peminjaman)}
+                  </td>
                   <td className="px-6 py-4 text-sm">
                     {loan.denda > 0 ? formatRupiah(loan.denda) : "-"}
                   </td>
@@ -111,17 +151,34 @@ export default function Loans({
                     <div className="flex items-center gap-2">
                       {role === "petugas" && loan.status_peminjaman === "pending" && (
                         <>
-                          <button className="p-1 text-green-600 hover:bg-green-50 rounded">
+                          <button
+                            onClick={() => handleAction(loan.id_loan, "approve")}
+                            className="p-1 text-green-600 hover:bg-green-50 rounded"
+                          >
                             <CheckCircle className="w-4 h-4" />
                           </button>
-                          <button className="p-1 text-red-600 hover:bg-red-50 rounded">
+                          <button
+                            onClick={() => handleAction(loan.id_loan, "reject")}
+                            className="p-1 text-red-600 hover:bg-red-50 rounded"
+                          >
                             <XCircle className="w-4 h-4" />
                           </button>
                         </>
                       )}
                       {role === "petugas" && loan.status_peminjaman === "siap_diambil" && (
-                        <button className="p-1 text-emerald-600 hover:bg-emerald-50 rounded">
+                        <button
+                          onClick={() => handleAction(loan.id_loan, "pickup")}
+                          className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
+                        >
                           <PackageCheck className="w-4 h-4" />
+                        </button>
+                      )}
+                      {role === "petugas" && loan.status_peminjaman === "dipinjam" && (
+                        <button
+                          onClick={() => handleAction(loan.id_loan, "return")}
+                          className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                        >
+                          Return
                         </button>
                       )}
                     </div>
@@ -130,7 +187,10 @@ export default function Loans({
               ))}
               {loans.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-slate-500">
+                  <td
+                    colSpan={7}
+                    className="px-6 py-8 text-center text-slate-500"
+                  >
                     Belum ada data peminjaman.
                   </td>
                 </tr>
