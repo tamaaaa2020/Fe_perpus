@@ -10,7 +10,6 @@ import {
   Archive,
   Flag,
   TrendingUp,
-  Activity,
   Calendar,
 } from "lucide-react";
 import {
@@ -48,11 +47,11 @@ import CategoryModal from "./components/modals/CategoryModal";
 import UserModal from "./components/modals/UserModal";
 import ReviewModal from "./components/modals/ReviewModal";
 
-// ====== Overview (Dashboard) ======
+/* ====== Overview (Dashboard) ====== */
 const Overview = ({ stats }) => {
   const [timeFilter, setTimeFilter] = useState("month");
 
-  // Data dummy (ganti dengan API jika ada)
+  // Dummy data (replace API if available)
   const loanTrends = useMemo(() => {
     if (timeFilter === "week") {
       return [
@@ -127,7 +126,7 @@ const Overview = ({ stats }) => {
         </div>
       </div>
 
-      {/* Chart 1: Tren Peminjaman */}
+      {/* Chart 1 */}
       <div className="bg-white p-6 rounded-xl shadow-lg">
         <div className="flex justify-between mb-6">
           <h3 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
@@ -164,7 +163,7 @@ const Overview = ({ stats }) => {
         </div>
       </div>
 
-      {/* Chart 2: Distribusi Kategori */}
+      {/* Chart 2 */}
       <div className="bg-white p-6 rounded-xl shadow-lg">
         <h3 className="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
           <TrendingUp className="w-5 h-5" /> Distribusi Kategori Buku
@@ -208,7 +207,7 @@ const Overview = ({ stats }) => {
         </div>
       </div>
 
-      {/* Chart 3: Aktivitas Harian */}
+      {/* Chart 3 */}
       <div className="bg-white p-6 rounded-xl shadow-lg">
         <h3 className="text-xl font-semibold text-gray-800 mb-6">
           Aktivitas Harian
@@ -232,7 +231,7 @@ const Overview = ({ stats }) => {
   );
 };
 
-// ====== Main Dashboard ======
+/* ====== Main Dashboard ====== */
 const AdminPetugasDashboard = () => {
   const { token, role, ready } = useAuthGuardForAdmin();
   const router = useRouter();
@@ -252,6 +251,8 @@ const AdminPetugasDashboard = () => {
   const [reportedReviews, setReportedReviews] = useState([]);
 
   const [isLoading, setIsLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
 
   const getAvailableTabs = useMemo(() => {
     const base = [
@@ -268,6 +269,14 @@ const AdminPetugasDashboard = () => {
     return role === "admin" ? [...base, ...adminTabs, reportTab] : [...base, reportTab];
   }, [role]);
 
+  const fetchLoans = async () => {
+    const loanData = await api(
+      role === "admin" ? "/admin/loans" : "/petugas/loans",
+      { token }
+    );
+    setLoans(Array.isArray(loanData) ? loanData : loanData.data || []);
+  };
+
   useEffect(() => {
     if (!ready) return;
     const fetchData = async () => {
@@ -277,11 +286,7 @@ const AdminPetugasDashboard = () => {
           { token }
         );
         setStats(dash || {});
-        const loanData = await api(
-          role === "admin" ? "/admin/loans" : "/petugas/loans",
-          { token }
-        );
-        setLoans(Array.isArray(loanData) ? loanData : loanData.data || []);
+        await fetchLoans();
         if (role === "admin") {
           const books = await api("/admin/books", { token });
           setBooks(Array.isArray(books) ? books : books.data || []);
@@ -324,7 +329,11 @@ const AdminPetugasDashboard = () => {
               filterStatus={filterStatus}
               setSearchTerm={setSearchTerm}
               setFilterStatus={setFilterStatus}
+              setErrorMsg={setErrorMsg}
+              setSuccessMsg={setSuccessMsg}
               role={role}
+              token={token}
+              reloadLoans={fetchLoans}
             />
           )}
           {activeTab === "books" && role === "admin" && <Books books={books} setShowModal={setShowModal} setSelectedItem={setSelectedItem} />}

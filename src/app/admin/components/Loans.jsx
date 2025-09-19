@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Search, CheckCircle, XCircle, PackageCheck } from "lucide-react";
 import { formatRupiah } from "@/lib/utils";
 import { fetchWithAuth } from "@/lib/api";
@@ -14,8 +14,8 @@ export default function Loans({
   setErrorMsg,
   setSuccessMsg,
   role,
-  token, // pastikan token dipass dari parent
-  reloadLoans, // function dari parent buat refresh data
+  token,
+  reloadLoans,
 }) {
   const formatDate = (dateStr) => {
     if (!dateStr) return "-";
@@ -44,7 +44,7 @@ export default function Loans({
     );
   };
 
-  // === aksi petugas ===
+  // === aksi petugas / admin ===
   const handleAction = async (loanId, action) => {
     try {
       let path = "";
@@ -112,7 +112,7 @@ export default function Loans({
       <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
         <div className="p-6 border-b border-slate-200 flex items-center justify-between">
           <h3 className="text-lg font-semibold">Daftar Peminjaman</h3>
-          {role === "petugas" && (
+          {(role === "petugas" || role === "admin") && (
             <div className="text-xs text-slate-500">
               Aksi: Approve / Reject / Pickup / Return
             </div>
@@ -122,11 +122,19 @@ export default function Loans({
           <table className="w-full">
             <thead className="bg-slate-50">
               <tr>
-                <th className="px-6 py-4 text-left text-sm font-medium">Peminjam</th>
+                <th className="px-6 py-4 text-left text-sm font-medium">
+                  Peminjam
+                </th>
                 <th className="px-6 py-4 text-left text-sm font-medium">Buku</th>
-                <th className="px-6 py-4 text-left text-sm font-medium">Tanggal Pinjam</th>
-                <th className="px-6 py-4 text-left text-sm font-medium">Jatuh Tempo</th>
-                <th className="px-6 py-4 text-left text-sm font-medium">Status</th>
+                <th className="px-6 py-4 text-left text-sm font-medium">
+                  Tanggal Pinjam
+                </th>
+                <th className="px-6 py-4 text-left text-sm font-medium">
+                  Jatuh Tempo
+                </th>
+                <th className="px-6 py-4 text-left text-sm font-medium">
+                  Status
+                </th>
                 <th className="px-6 py-4 text-left text-sm font-medium">Denda</th>
                 <th className="px-6 py-4 text-left text-sm font-medium">Aksi</th>
               </tr>
@@ -141,7 +149,9 @@ export default function Loans({
                   <td className="px-6 py-4 text-sm">
                     {formatDate(loan.tanggal_peminjaman)}
                   </td>
-                  <td className="px-6 py-4 text-sm">{formatDate(loan.due_date)}</td>
+                  <td className="px-6 py-4 text-sm">
+                    {formatDate(loan.due_date)}
+                  </td>
                   <td className="px-6 py-4">
                     {statusBadge(loan.status_peminjaman)}
                   </td>
@@ -150,38 +160,49 @@ export default function Loans({
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
-                      {role === "petugas" && loan.status_peminjaman === "pending" && (
-                        <>
+                      {(role === "petugas" || role === "admin") &&
+                        loan.status_peminjaman === "pending" && (
+                          <>
+                            <button
+                              onClick={() =>
+                                handleAction(loan.id_loan, "approve")
+                              }
+                              className="p-1 text-green-600 hover:bg-green-50 rounded"
+                            >
+                              <CheckCircle className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() =>
+                                handleAction(loan.id_loan, "reject")
+                              }
+                              className="p-1 text-red-600 hover:bg-red-50 rounded"
+                            >
+                              <XCircle className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
+                      {(role === "petugas" || role === "admin") &&
+                        loan.status_peminjaman === "siap_diambil" && (
                           <button
-                            onClick={() => handleAction(loan.id_loan, "approve")}
-                            className="p-1 text-green-600 hover:bg-green-50 rounded"
+                            onClick={() =>
+                              handleAction(loan.id_loan, "pickup")
+                            }
+                            className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
                           >
-                            <CheckCircle className="w-4 h-4" />
+                            <PackageCheck className="w-4 h-4" />
                           </button>
+                        )}
+                      {(role === "petugas" || role === "admin") &&
+                        loan.status_peminjaman === "dipinjam" && (
                           <button
-                            onClick={() => handleAction(loan.id_loan, "reject")}
-                            className="p-1 text-red-600 hover:bg-red-50 rounded"
+                            onClick={() =>
+                              handleAction(loan.id_loan, "return")
+                            }
+                            className="p-1 text-blue-600 hover:bg-blue-50 rounded text-xs"
                           >
-                            <XCircle className="w-4 h-4" />
+                            Return
                           </button>
-                        </>
-                      )}
-                      {role === "petugas" && loan.status_peminjaman === "siap_diambil" && (
-                        <button
-                          onClick={() => handleAction(loan.id_loan, "pickup")}
-                          className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
-                        >
-                          <PackageCheck className="w-4 h-4" />
-                        </button>
-                      )}
-                      {role === "petugas" && loan.status_peminjaman === "dipinjam" && (
-                        <button
-                          onClick={() => handleAction(loan.id_loan, "return")}
-                          className="p-1 text-blue-600 hover:bg-blue-50 rounded"
-                        >
-                          Return
-                        </button>
-                      )}
+                        )}
                     </div>
                   </td>
                 </tr>
