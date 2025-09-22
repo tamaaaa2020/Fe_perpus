@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Search, CheckCircle, XCircle, PackageCheck } from "lucide-react";
+import { Search } from "lucide-react";
 import { formatRupiah } from "@/lib/utils";
 import { fetchWithAuth } from "@/lib/api";
+import LoanStatusModal from "./modals/LoanStatusModal";
 
 export default function Loans({
   loans,
@@ -17,6 +18,9 @@ export default function Loans({
   token,
   reloadLoans,
 }) {
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [selectedLoan, setSelectedLoan] = useState(null);
+
   const formatDate = (dateStr) => {
     if (!dateStr) return "-";
     return new Date(dateStr).toLocaleDateString("id-ID");
@@ -44,37 +48,31 @@ export default function Loans({
     );
   };
 
-  // === aksi petugas / admin ===
-  const handleAction = async (loanId, action) => {
+  const handleChangeStatus = async (status) => {
+    if (!selectedLoan) return;
     try {
-      let path = "";
-      let method = "PUT";
-
-      switch (action) {
-        case "approve":
-          path = `/petugas/loans/${loanId}/validate`;
-          break;
-        case "reject":
-          path = `/petugas/loan/${loanId}/reject`;
-          method = "POST";
-          break;
-        case "pickup":
-          path = `/petugas/loans/${loanId}/pickup`;
-          break;
-        case "return":
-          path = `/petugas/loans/${loanId}/return`;
-          break;
-        default:
-          return;
-      }
-
-      await fetchWithAuth(path, token, { method });
-      setSuccessMsg(`Berhasil ${action} peminjaman.`);
+      await fetchWithAuth(
+        `/petugas/loans/${selectedLoan.id_loan}/validate`,
+        token,
+        {
+          method: "PUT",
+          body: {status},
+        }
+      );
+      setSuccessMsg?.(`Status peminjaman diubah ke ${status}`);
       reloadLoans && reloadLoans();
     } catch (err) {
       console.error(err);
-      setErrorMsg(`Gagal ${action} peminjaman.`);
+      setErrorMsg?.("Gagal ubah status peminjaman.");
+    } finally {
+      setShowStatusModal(false);
+      setSelectedLoan(null);
     }
+  };
+
+  const openStatusModal = (loan) => {
+    setSelectedLoan(loan);
+    setShowStatusModal(true);
   };
 
   return (
@@ -114,7 +112,7 @@ export default function Loans({
           <h3 className="text-lg font-semibold">Daftar Peminjaman</h3>
           {(role === "petugas" || role === "admin") && (
             <div className="text-xs text-slate-500">
-              Aksi: Approve / Reject / Pickup / Return
+              Klik tombol Validasi untuk ubah status
             </div>
           )}
         </div>
@@ -135,7 +133,9 @@ export default function Loans({
                 <th className="px-6 py-4 text-left text-sm font-medium">
                   Status
                 </th>
-                <th className="px-6 py-4 text-left text-sm font-medium">Denda</th>
+                <th className="px-6 py-4 text-left text-sm font-medium">
+                  Denda
+                </th>
                 <th className="px-6 py-4 text-left text-sm font-medium">Aksi</th>
               </tr>
             </thead>
@@ -160,47 +160,13 @@ export default function Loans({
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
-                      {(role === "petugas" || role === "admin") &&
+                      {role === "petugas" &&
                         loan.status_peminjaman === "pending" && (
-                          <>
-                            <button
-                              onClick={() =>
-                                handleAction(loan.id_loan, "approve")
-                              }
-                              className="p-1 text-green-600 hover:bg-green-50 rounded"
-                            >
-                              <CheckCircle className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() =>
-                                handleAction(loan.id_loan, "reject")
-                              }
-                              className="p-1 text-red-600 hover:bg-red-50 rounded"
-                            >
-                              <XCircle className="w-4 h-4" />
-                            </button>
-                          </>
-                        )}
-                      {(role === "petugas" || role === "admin") &&
-                        loan.status_peminjaman === "siap_diambil" && (
                           <button
-                            onClick={() =>
-                              handleAction(loan.id_loan, "pickup")
-                            }
-                            className="p-1 text-emerald-600 hover:bg-emerald-50 rounded"
+                            onClick={() => openStatusModal(loan)}
+                            className="px-3 py-1 bg-blue-500 text-white rounded"
                           >
-                            <PackageCheck className="w-4 h-4" />
-                          </button>
-                        )}
-                      {(role === "petugas" || role === "admin") &&
-                        loan.status_peminjaman === "dipinjam" && (
-                          <button
-                            onClick={() =>
-                              handleAction(loan.id_loan, "return")
-                            }
-                            className="p-1 text-blue-600 hover:bg-blue-50 rounded text-xs"
-                          >
-                            Return
+                            Validasi
                           </button>
                         )}
                     </div>
@@ -221,6 +187,15 @@ export default function Loans({
           </table>
         </div>
       </div>
+
+      {/* Modal */}
+      {showStatusModal && (
+        <LoanStatusModal
+          loan={selectedLoan}
+          onClose={() => setShowStatusModal(false)}
+          onChangeStatus={handleChangeStatus}
+        />
+      )}
     </div>
   );
 }

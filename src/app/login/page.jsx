@@ -3,8 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Mail, Lock, Globe } from "lucide-react";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
+import { API_BASE } from "@/lib/api"; // ⬅️ gunakan helper yg udah lu bikin
 
 function routeForRole(role) {
   const r = String(role || "").toLowerCase();
@@ -19,11 +18,10 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({ email: "", password: "" });
-  const [errors, setErrors] = useState(null);   // error validasi Laravel (422)
-  const [info, setInfo] = useState("");         // pesan sukses
+  const [errors, setErrors] = useState(null);
+  const [info, setInfo] = useState("");
 
   useEffect(() => {
-    // bersihkan timer saat unmount
     return () => {
       if (redirectTimer.current) clearTimeout(redirectTimer.current);
     };
@@ -67,24 +65,22 @@ const Login = () => {
 
       if (!res.ok) {
         if (res.status === 422 && data?.errors) {
-          setErrors(data.errors);           // error validasi
+          setErrors(data.errors);
         } else if (res.status === 401) {
           alert(data?.message || "Email atau password salah.");
         } else if (res.status === 419) {
-          alert("CSRF token mismatch (419). Jika memakai Sanctum dengan cookie, inisialisasi CSRF dulu.");
+          alert("CSRF token mismatch (419). Kalau pakai Sanctum, butuh init CSRF cookie.");
         } else {
           alert(data?.message || "Login gagal. Coba lagi.");
         }
         return;
       }
 
-      // Jika banned, controllermu mengembalikan message tanpa token.
       if (!data?.token) {
         alert(data?.message || "Login berhasil, tapi token tidak ditemukan.");
         return;
       }
 
-      // ======= LOGIN SUKSES =======
       localStorage.setItem("token", data.token);
       if (data?.user) localStorage.setItem("user", JSON.stringify(data.user));
 
@@ -112,15 +108,23 @@ const Login = () => {
                 <div className="w-10 h-10 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl flex items-center justify-center">
                   <Globe className="w-6 h-6 text-white" />
                 </div>
-                <span className="text-2xl font-bold text-slate-800">Pocker Library</span>
+                <span className="text-2xl font-bold text-slate-800">
+                  Pocker Library
+                </span>
               </div>
-              <h2 className="text-2xl font-bold text-slate-900 mb-2">Selamat Datang Kembali</h2>
-              <p className="text-slate-600">Masuk ke akun Anda untuk melanjutkan</p>
+              <h2 className="text-2xl font-bold text-slate-900 mb-2">
+                Selamat Datang Kembali
+              </h2>
+              <p className="text-slate-600">
+                Masuk ke akun Anda untuk melanjutkan
+              </p>
             </div>
 
             <form className="space-y-6" onSubmit={handleSubmit}>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Email</label>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Email
+                </label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                   <input
@@ -140,7 +144,9 @@ const Login = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Password</label>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Password
+                </label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                   <input
