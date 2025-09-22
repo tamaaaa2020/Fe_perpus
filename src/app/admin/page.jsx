@@ -31,7 +31,6 @@ import {
 import { api } from "@/lib/api";
 import { useAuthGuardForAdmin } from "@/lib/auth";
 
-// Komponen
 import Header from "./components/Header";
 import Tabs from "./components/Tabs";
 import Loans from "./components/Loans";
@@ -41,112 +40,80 @@ import UsersTable from "./components/Users";
 import ReportedReviews from "./components/ReportedReviews";
 import Reports from "./components/Reports";
 
-// Modals
 import BookModal from "./components/modals/BookModal";
 import CategoryModal from "./components/modals/CategoryModal";
 import UserModal from "./components/modals/UserModal";
 import ReviewModal from "./components/modals/ReviewModal";
 
-/* ====== Overview (Dashboard) ====== */
-const Overview = ({ stats }) => {
+// ====== Overview (Dashboard) ======
+const Overview = ({ token, role }) => {
   const [timeFilter, setTimeFilter] = useState("month");
+  const [loanTrends, setLoanTrends] = useState([]);
+  const [categoryDistribution, setCategoryDistribution] = useState([]);
+  const [dailyActivity, setDailyActivity] = useState([]);
+  const [userGrowth, setUserGrowth] = useState([]);
+  const [topBooks, setTopBooks] = useState([]);
+  const [topUsers, setTopUsers] = useState([]);
 
-  // Dummy data (replace API if available)
-  const loanTrends = useMemo(() => {
-    if (timeFilter === "week") {
-      return [
-        { period: "M1", loans: 12, returns: 8 },
-        { period: "M2", loans: 18, returns: 15 },
-        { period: "M3", loans: 25, returns: 20 },
-        { period: "M4", loans: 22, returns: 18 },
-      ];
-    } else if (timeFilter === "month") {
-      return [
-        { period: "Jan", loans: 85, returns: 78 },
-        { period: "Feb", loans: 92, returns: 88 },
-        { period: "Mar", loans: 108, returns: 95 },
-        { period: "Apr", loans: 125, returns: 118 },
-        { period: "May", loans: 98, returns: 102 },
-        { period: "Jun", loans: 142, returns: 135 },
-        { period: "Jul", loans: 156, returns: 148 },
-        { period: "Aug", loans: 134, returns: 140 },
-        { period: "Sep", loans: 128, returns: 125 },
-      ];
-    } else {
-      return [
-        { period: "2020", loans: 1250, returns: 1180 },
-        { period: "2021", loans: 1420, returns: 1380 },
-        { period: "2022", loans: 1680, returns: 1650 },
-        { period: "2023", loans: 1890, returns: 1845 },
-        { period: "2024", loans: 2150, returns: 2085 },
-      ];
-    }
-  }, [timeFilter]);
+  // LoanTrends + CategoryDistribution + DailyActivity => admin & petugas
+  useEffect(() => {
+    const fetchDashboard = async () => {
+      try {
+        const data = await api(
+          role === "admin" ? "/admin/dashboard" : "/petugas/dashboard",
+          { token }
+        );
+        setLoanTrends(data.loanTrends || []);
+        setCategoryDistribution(data.categoryDistribution || []);
+        setDailyActivity(data.dailyActivity || []);
+      } catch (err) {
+        console.error("Error fetching dashboard", err);
+      }
+    };
+    fetchDashboard();
+  }, [token, role]);
 
-  const categoryDistribution = [
-    { name: "Programming", value: 45, color: "#3B82F6" },
-    { name: "Database", value: 25, color: "#10B981" },
-    { name: "Design", value: 20, color: "#F59E0B" },
-    { name: "Network", value: 10, color: "#EF4444" },
-  ];
+  // User Growth => hanya admin
+  useEffect(() => {
+    if (role !== "admin") return;
+    const fetchUserGrowth = async () => {
+      try {
+        const data = await api(
+          `/admin/dashboard/user-growth?range=${timeFilter}`,
+          { token }
+        );
+        setUserGrowth(data || []);
+      } catch (err) {
+        console.error("Error fetching user growth", err);
+      }
+    };
+    fetchUserGrowth();
+  }, [timeFilter, token, role]);
 
-  const dailyActivity = [
-    { day: "Sen", morning: 12, afternoon: 18, evening: 8 },
-    { day: "Sel", morning: 15, afternoon: 22, evening: 12 },
-    { day: "Rab", morning: 18, afternoon: 25, evening: 15 },
-    { day: "Kam", morning: 14, afternoon: 20, evening: 10 },
-    { day: "Jum", morning: 16, afternoon: 28, evening: 18 },
-    { day: "Sab", morning: 25, afternoon: 35, evening: 22 },
-    { day: "Min", morning: 20, afternoon: 30, evening: 25 },
-  ];
+  // Top Books & Users => hanya admin
+  useEffect(() => {
+    if (role !== "admin") return;
+    const fetchTop = async () => {
+      try {
+        const books = await api("/admin/dashboard/top-books", { token });
+        const users = await api("/admin/dashboard/top-users", { token });
+        setTopBooks(books || []);
+        setTopUsers(users || []);
+      } catch (err) {
+        console.error("Error fetching top data", err);
+      }
+    };
+    fetchTop();
+  }, [token, role]);
 
   return (
     <div className="space-y-8">
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-6 rounded-xl text-white shadow-lg">
-          <p className="text-white/80 text-sm">Total Login Hari Ini</p>
-          <p className="text-3xl font-bold">127</p>
-          <p className="text-white/70 text-xs mt-1">+12% dari kemarin</p>
-        </div>
-        <div className="bg-gradient-to-r from-green-500 to-green-600 p-6 rounded-xl text-white shadow-lg">
-          <p className="text-white/80 text-sm">Buku Dipinjam Minggu Ini</p>
-          <p className="text-3xl font-bold">45</p>
-          <p className="text-white/70 text-xs mt-1">+8% dari minggu lalu</p>
-        </div>
-        <div className="bg-gradient-to-r from-purple-500 to-purple-600 p-6 rounded-xl text-white shadow-lg">
-          <p className="text-white/80 text-sm">User Aktif Bulan Ini</p>
-          <p className="text-3xl font-bold">89</p>
-          <p className="text-white/70 text-xs mt-1">+15% dari bulan lalu</p>
-        </div>
-        <div className="bg-gradient-to-r from-orange-500 to-orange-600 p-6 rounded-xl text-white shadow-lg">
-          <p className="text-white/80 text-sm">Tingkat Pengembalian</p>
-          <p className="text-3xl font-bold">94%</p>
-          <p className="text-white/70 text-xs mt-1">+2% dari rata-rata</p>
-        </div>
-      </div>
-
-      {/* Chart 1 */}
+      {/* Chart 1: Tren Peminjaman */}
       <div className="bg-white p-6 rounded-xl shadow-lg">
         <div className="flex justify-between mb-6">
           <h3 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
             <Calendar className="w-5 h-5" /> Tren Peminjaman
           </h3>
-          <div className="flex gap-2">
-            {["week", "month", "year"].map((key) => (
-              <button
-                key={key}
-                onClick={() => setTimeFilter(key)}
-                className={`px-4 py-2 rounded-lg text-sm ${
-                  timeFilter === key
-                    ? "bg-blue-500 text-white"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                }`}
-              >
-                {key === "week" ? "Minggu" : key === "month" ? "Bulan" : "Tahun"}
-              </button>
-            ))}
-          </div>
         </div>
         <div style={{ width: "100%", height: 350 }}>
           <ResponsiveContainer>
@@ -168,43 +135,25 @@ const Overview = ({ stats }) => {
         <h3 className="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
           <TrendingUp className="w-5 h-5" /> Distribusi Kategori Buku
         </h3>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-          <div style={{ width: "100%", height: 300 }}>
-            <ResponsiveContainer>
-              <PieChart>
-                <Pie
-                  data={categoryDistribution}
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={100}
-                  dataKey="value"
-                  label={({ name, percent }) =>
-                    `${name} ${(percent * 100).toFixed(0)}%`
-                  }
-                >
-                  {categoryDistribution.map((entry, index) => (
-                    <Cell key={index} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="space-y-4">
-            {categoryDistribution.map((c) => (
-              <div key={c.name} className="flex items-center gap-4">
-                <div
-                  className="w-4 h-4 rounded-full"
-                  style={{ backgroundColor: c.color }}
-                />
-                <span className="flex-1">{c.name}</span>
-                <span className="font-bold" style={{ color: c.color }}>
-                  {c.value}%
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
+        <ResponsiveContainer width="100%" height={300}>
+          <PieChart>
+            <Pie
+              data={categoryDistribution}
+              cx="50%"
+              cy="50%"
+              outerRadius={100}
+              dataKey="value"
+              label={({ name, percent }) =>
+                `${name} ${(percent * 100).toFixed(0)}%`
+              }
+            >
+              {categoryDistribution.map((entry, index) => (
+                <Cell key={index} fill={entry.color} />
+              ))}
+            </Pie>
+            <Tooltip />
+          </PieChart>
+        </ResponsiveContainer>
       </div>
 
       {/* Chart 3 */}
@@ -212,21 +161,92 @@ const Overview = ({ stats }) => {
         <h3 className="text-xl font-semibold text-gray-800 mb-6">
           Aktivitas Harian
         </h3>
-        <div style={{ width: "100%", height: 300 }}>
-          <ResponsiveContainer>
-            <BarChart data={dailyActivity}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="day" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="morning" stackId="a" fill="#3B82F6" name="Pagi" />
-              <Bar dataKey="afternoon" stackId="a" fill="#10B981" name="Siang" />
-              <Bar dataKey="evening" stackId="a" fill="#F59E0B" name="Sore" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={dailyActivity}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="day" />
+            <YAxis />
+            <Tooltip />
+            <Legend />
+            <Bar dataKey="morning" stackId="a" fill="#3B82F6" name="Pagi" />
+            <Bar dataKey="afternoon" stackId="a" fill="#10B981" name="Siang" />
+            <Bar dataKey="evening" stackId="a" fill="#F59E0B" name="Sore" />
+          </BarChart>
+        </ResponsiveContainer>
       </div>
+
+      {/* Chart tambahan hanya untuk Admin */}
+      {role === "admin" && (
+        <>
+          {/* Chart 4: Growth User */}
+          <div className="bg-white p-6 rounded-xl shadow-lg">
+            <div className="flex justify-between mb-6">
+              <h3 className="text-xl font-semibold text-gray-800">
+                Pertumbuhan User ({timeFilter})
+              </h3>
+              <div className="flex gap-2">
+                {["week", "month", "year"].map((key) => (
+                  <button
+                    key={key}
+                    onClick={() => setTimeFilter(key)}
+                    className={`px-4 py-2 rounded-lg text-sm ${
+                      timeFilter === key
+                        ? "bg-blue-500 text-white"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    }`}
+                  >
+                    {key === "week"
+                      ? "Minggu"
+                      : key === "month"
+                      ? "Bulan"
+                      : "Tahun"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={userGrowth}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="period" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Line type="monotone" dataKey="users" stroke="#6366F1" />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Top 10 Buku */}
+          <div className="bg-white p-6 rounded-xl shadow-lg">
+            <h3 className="text-xl font-semibold text-gray-800 mb-6">
+              Top 10 Buku Paling Banyak Dipinjam
+            </h3>
+            <ul className="space-y-2">
+              {topBooks.map((book, idx) => (
+                <li key={idx} className="flex justify-between border-b pb-1">
+                  <span>{book.title}</span>
+                  <span className="font-bold">{book.total}x</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Top 10 User */}
+          <div className="bg-white p-6 rounded-xl shadow-lg">
+            <h3 className="text-xl font-semibold text-gray-800 mb-6">
+              Top 10 User Paling Aktif Minjem
+            </h3>
+            <ul className="space-y-2">
+              {topUsers.map((user, idx) => (
+                <li key={idx} className="flex justify-between border-b pb-1">
+                  <span>{user.username}</span>
+                  <span className="font-bold">{user.total}x</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </>
+      )}
     </div>
   );
 };
@@ -239,7 +259,6 @@ const AdminPetugasDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
-
   const [showModal, setShowModal] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
 
@@ -266,7 +285,9 @@ const AdminPetugasDashboard = () => {
       { id: "reported-reviews", label: "Review Reports", icon: Flag },
     ];
     const reportTab = { id: "reports", label: "Laporan", icon: FileText };
-    return role === "admin" ? [...base, ...adminTabs, reportTab] : [...base, reportTab];
+    return role === "admin"
+      ? [...base, ...adminTabs, reportTab]
+      : [...base, reportTab];
   }, [role]);
 
   const fetchLoans = async () => {
@@ -295,17 +316,7 @@ const AdminPetugasDashboard = () => {
           const users = await api("/admin/users", { token });
           setUsers(Array.isArray(users) ? users : users.data || []);
         }
-        setReportedReviews([
-          {
-            id: 1,
-            book_title: "Belajar React Native",
-            reviewer: "User123",
-            review: "Buku ini sangat buruk...",
-            report_reason: "Konten tidak pantas",
-            reported_by: "Ahmad",
-            reported_at: "2025-09-10",
-          },
-        ]);
+        setReportedReviews([]);
       } finally {
         setIsLoading(false);
       }
@@ -313,15 +324,24 @@ const AdminPetugasDashboard = () => {
     fetchData();
   }, [ready, role, token]);
 
-  if (!ready || isLoading) return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  if (!ready || isLoading)
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        Loading...
+      </div>
+    );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white">
       <Header role={role} router={router} />
       <div className="max-w-7xl mx-auto px-4 py-8">
-        <Tabs tabs={getAvailableTabs} activeTab={activeTab} setActiveTab={setActiveTab} />
+        <Tabs
+          tabs={getAvailableTabs}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+        />
         <div className="space-y-8">
-          {activeTab === "overview" && <Overview stats={stats} />}
+          {activeTab === "overview" && <Overview token={token} role={role} />}
           {activeTab === "loans" && (
             <Loans
               loans={loans}
@@ -336,17 +356,53 @@ const AdminPetugasDashboard = () => {
               reloadLoans={fetchLoans}
             />
           )}
-          {activeTab === "books" && role === "admin" && <Books books={books} setShowModal={setShowModal} setSelectedItem={setSelectedItem} />}
-          {activeTab === "categories" && role === "admin" && <Categories categories={categories} setShowModal={setShowModal} setSelectedItem={setSelectedItem} />}
-          {activeTab === "users" && role === "admin" && <UsersTable users={users} setShowModal={setShowModal} setSelectedItem={setSelectedItem} />}
-          {activeTab === "reported-reviews" && role === "admin" && <ReportedReviews reviews={reportedReviews} setShowModal={setShowModal} setSelectedItem={setSelectedItem} />}
+          {activeTab === "books" &&
+            role === "admin" && (
+              <Books
+                books={books}
+                setShowModal={setShowModal}
+                setSelectedItem={setSelectedItem}
+              />
+            )}
+          {activeTab === "categories" &&
+            role === "admin" && (
+              <Categories
+                categories={categories}
+                setShowModal={setShowModal}
+                setSelectedItem={setSelectedItem}
+              />
+            )}
+          {activeTab === "users" &&
+            role === "admin" && (
+              <UsersTable
+                users={users}
+                setShowModal={setShowModal}
+                setSelectedItem={setSelectedItem}
+              />
+            )}
+          {activeTab === "reported-reviews" &&
+            role === "admin" && (
+              <ReportedReviews
+                reviews={reportedReviews}
+                setShowModal={setShowModal}
+                setSelectedItem={setSelectedItem}
+              />
+            )}
           {activeTab === "reports" && <Reports role={role} />}
         </div>
       </div>
-      {showModal === "book" && <BookModal selectedItem={selectedItem} setShowModal={setShowModal} />}
-      {showModal === "category" && <CategoryModal selectedItem={selectedItem} setShowModal={setShowModal} />}
-      {showModal === "user" && <UserModal selectedItem={selectedItem} setShowModal={setShowModal} />}
-      {showModal === "review" && <ReviewModal selectedItem={selectedItem} setShowModal={setShowModal} />}
+      {showModal === "book" && (
+        <BookModal selectedItem={selectedItem} setShowModal={setShowModal} />
+      )}
+      {showModal === "category" && (
+        <CategoryModal selectedItem={selectedItem} setShowModal={setShowModal} />
+      )}
+      {showModal === "user" && (
+        <UserModal selectedItem={selectedItem} setShowModal={setShowModal} />
+      )}
+      {showModal === "review" && (
+        <ReviewModal selectedItem={selectedItem} setShowModal={setShowModal} />
+      )}
     </div>
   );
 };
