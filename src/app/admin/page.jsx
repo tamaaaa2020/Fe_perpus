@@ -49,10 +49,6 @@ import ReviewModal from "./components/modals/ReviewModal";
 const AdminPetugasDashboard = () => {
   const { token, role, ready } = useAuthGuardForAdmin();
   const router = useRouter();
-
-  const [errorMsg, setErrorMsg] = useState("");
-  const [successMsg, setSuccessMsg] = useState("");
-
   const [activeTab, setActiveTab] = useState("overview");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
