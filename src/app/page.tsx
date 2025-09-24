@@ -64,7 +64,7 @@ useEffect(() => {
     <div className="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 group overflow-hidden border border-slate-100">
       <div className="relative overflow-hidden">
         <img
-          src={book.cover}
+          src={book.cover || "https://via.placeholder.com/400x600?text=No+Cover"}
           alt={book.title}
           className="w-full h-64 object-cover group-hover:scale-105 transition-transform duration-300"
         />

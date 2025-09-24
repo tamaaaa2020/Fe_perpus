@@ -94,6 +94,26 @@ const Dashboard = () => {
   const [reviews, setReviews] = useState([]);
   const [collections, setCollections] = useState([]);
 
+  const fetchBorrowHistory = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/api/my-loans", {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          "Content-Type": "application/json",
+        },
+      });
+      if(!res.ok) throw new Error("Gagal Fetch Riwayat");
+      const data = await res.json();
+      setBorrowHistory(data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    fetchBorrowHistory();
+  }, []);
+
   const borrowBook = async (bookId) => {
     try {
       const res = await fetch("http://localhost:8000/api/loans", {
@@ -116,6 +136,8 @@ const Dashboard = () => {
         book.id === bookId ? {...book, stock: book.stock - 1} : book
       )
     );
+
+      fetchBorrowHistory();
     } catch (err) {
       console.error(err);
       alert("Terjadi Kesalahan jaringan saat meminjam buku");
@@ -146,7 +168,7 @@ const Dashboard = () => {
   };
 
   const isFavorites = (bookId) => {
-    return collections.some((item) => item.book?.id === bookId);
+    return collections.some((item) => item.book?.id === bookId || item.book?.id_book === bookId);
   };
 
   const fetchCollections = async () => {
@@ -273,6 +295,44 @@ const Dashboard = () => {
           );
         })}
       </div>
+    </div>
+  );
+
+  const renderHistory = () => (
+    <div className="space-y-6">
+      <h3 className="text-xl font-semibold">Riwayat Peminjaman</h3>
+      {borrowHistory.length === 0 ? (
+        <p className="text-slate-500">Belum ada riwayat.</p>
+      ) : (
+        <div className="space-y-4">
+          {borrowHistory.map((loan) => (
+            <div
+              key={loan.id_loan}
+              className="bg-white rounded-xl shadow p-4 flex items-center justify-between border"
+            >
+              <div className="flex items-center space-x-4">
+                <img
+                  src={loan.book.cover || "https://via.placeholder.com/80x120"}
+                  alt={loan.book.title}
+                  className="w-16 h-20 object-cover rounded"
+                />
+                <div>
+                  <h4 className="font-semibold">{loan.book.title}</h4>
+                  <p className="text-sm text-slate-600">
+                    Status: {loan.status}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Pinjam: {loan.tanggal_peminjaman || "-"}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    Kembali: {loan.tanggal_pengembalian || "-"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 
@@ -455,7 +515,7 @@ const Dashboard = () => {
         <div className="space-y-8">
           {activeTab === "books" && renderBooks()}
           {activeTab === "favorites" && renderFavorites()}
-          {/* history, reviews bisa lanjut pakai dummy dulu */}
+          {activeTab === "history" && renderHistory()}
         </div>
       </div>
     </div>
