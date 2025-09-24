@@ -110,7 +110,7 @@ export default function Loans({
       <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
         <div className="p-6 border-b border-slate-200 flex items-center justify-between">
           <h3 className="text-lg font-semibold">Daftar Peminjaman</h3>
-          {role === "petugas" && (
+          {(role === "petugas" || role === "admin") && (
             <div className="text-xs text-slate-500">
               Klik tombol Validasi untuk ubah status
             </div>
