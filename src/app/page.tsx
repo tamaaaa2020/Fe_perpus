@@ -28,86 +28,32 @@ const LandingPage: React.FC = () => {
   const router = useRouter();
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    total_books: 0,
+    active_members: 0,
+    borrowed_books: 0,
+  });
 
   // mock API
-  useEffect(() => {
-    setTimeout(() => {
-      const mockBooks: Book[] = [
-        {
-          id: 1,
-          title: "Harry Potter dan Batu Bertuah",
-          author: "J.K. Rowling",
-          cover:
-            "https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=400&h=600&fit=crop",
-          rating: 4.8,
-          genre: "Fantasy",
-          available: true,
-          description:
-            "Petualangan seorang anak yatim piatu yang menemukan dunia sihir",
-        },
-        {
-          id: 2,
-          title: "Laskar Pelangi",
-          author: "Andrea Hirata",
-          cover:
-            "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=400&h=600&fit=crop",
-          rating: 4.7,
-          genre: "Drama",
-          available: true,
-          description: "Kisah inspiratif tentang pendidikan di Belitung",
-        },
-        {
-          id: 3,
-          title: "Atomic Habits",
-          author: "James Clear",
-          cover:
-            "https://images.unsplash.com/photo-1589829085413-56de8ae18c73?w=400&h=600&fit=crop",
-          rating: 4.9,
-          genre: "Self-Help",
-          available: false,
-          description: "Panduan praktis untuk membangun kebiasaan baik",
-        },
-        {
-          id: 4,
-          title: "Dilan 1990",
-          author: "Pidi Baiq",
-          cover:
-            "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=600&fit=crop",
-          rating: 4.6,
-          genre: "Romance",
-          available: true,
-          description:
-            "Kisah cinta remaja di era 90an yang mengharukan",
-        },
-        {
-          id: 5,
-          title: "Sapiens",
-          author: "Yuval Noah Harari",
-          cover:
-            "https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=400&h=600&fit=crop",
-          rating: 4.8,
-          genre: "History",
-          available: true,
-          description:
-            "Sejarah singkat umat manusia dari zaman batu hingga modern",
-        },
-        {
-          id: 6,
-          title: "Bumi Manusia",
-          author: "Pramoedya Ananta Toer",
-          cover:
-            "https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=400&h=600&fit=crop",
-          rating: 4.9,
-          genre: "Historical Fiction",
-          available: true,
-          description:
-            "Novel klasik tentang perjuangan di masa kolonial",
-        },
-      ];
-      setBooks(mockBooks);
+useEffect(() => {
+  const fetchLandingData = async () => {
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_BASE_URL}/landing`
+      );
+      const data = await res.json();
+
+      setBooks(data.popularBooks || []);
+
+      setStats(data.stats);
+    } catch(err) {
+      console.error("Gagal Fetching landing data:", err);
+    } finally {
       setLoading(false);
-    }, 1000);
-  }, []);
+    }
+  };
+  fetchLandingData();
+}, []);
 
   const handleBorrowClick = (bookId: number) => {
     // Arahkan ke register saat klik Pinjam
@@ -254,19 +200,19 @@ const LandingPage: React.FC = () => {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             <div className="text-center">
               <div className="text-3xl font-bold text-indigo-600 mb-2">
-                1000+
+                {stats.total_books}+
               </div>
               <div className="text-slate-600">Koleksi Buku</div>
             </div>
             <div className="text-center">
               <div className="text-3xl font-bold text-purple-600 mb-2">
-                500+
+                {stats.active_members}+
               </div>
               <div className="text-slate-600">Anggota Aktif</div>
             </div>
             <div className="text-center">
               <div className="text-3xl font-bold text-green-600 mb-2">
-                2000+
+                {stats.borrowed_books}+
               </div>
               <div className="text-slate-600">Buku Dipinjam</div>
             </div>
