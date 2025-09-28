@@ -1,7 +1,18 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { API_BASE } from "@/lib/api";
-import { X, Upload, Book, User, Building2, Calendar, Hash, FileText, Camera, Sparkles } from "lucide-react";
+import {
+  X,
+  Upload,
+  Book,
+  User,
+  Building2,
+  Calendar,
+  Hash,
+  FileText,
+  Camera,
+  Sparkles,
+} from "lucide-react";
 
 const BookModal = ({ selectedItem, setShowModal, setBooks }) => {
   const token = localStorage.getItem("token");
@@ -29,14 +40,14 @@ const BookModal = ({ selectedItem, setShowModal, setBooks }) => {
         stock: selectedItem.stock || "",
         description: selectedItem.description || "",
       });
-      if (selectedItem.image_url) {
-        setPreview(selectedItem.image_url);
+      if (selectedItem.cover) {
+        setPreview(selectedItem.cover);
       }
     }
   }, [selectedItem]);
 
   const handleFileChange = (file) => {
-    if (file && file.type.startsWith('image/')) {
+    if (file && file.type.startsWith("image/")) {
       setImage(file);
       setPreview(URL.createObjectURL(file));
     }
@@ -54,32 +65,41 @@ const BookModal = ({ selectedItem, setShowModal, setBooks }) => {
     try {
       const formData = new FormData();
       Object.keys(form).forEach((key) => formData.append(key, form[key]));
-      if (image) formData.append("image", image);
+      if (image) formData.append("cover", image);
 
-      const url = selectedItem
-        ? `${API_BASE}/admin/books/${selectedItem.id}`
-        : `${API_BASE}/admin/books`;
+      let url = `${API_BASE}/admin/books`;
+      let method = "POST";
+
+      if (selectedItem) {
+        const id = selectedItem.id_book ?? selectedItem.id;
+        url = `${API_BASE}/admin/books/${id}`;
+        formData.append("_method", "PUT"); // Laravel method spoofing
+      }
 
       const res = await fetch(url, {
-        method: selectedItem ? "POST" : "POST", // fallback, kalau update pakai POST+_method=PUT
+        method,
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
 
+      const result = await res.json();
+
       if (res.ok) {
-        const data = await res.json();
-        setBooks((prev) =>
-          selectedItem
-            ? prev.map((b) => (b.id === data.id ? data : b))
-            : [...prev, data]
-        );
+        if (selectedItem) {
+          setBooks((prev) =>
+              prev.map((b) => b.id_book === result.data.id ? {...b, ...result.data} : b
+            )
+          );
+        } else {
+          setBooks((prev) => [...prev, result.data]);
+        }
         setShowModal(null);
       } else {
-        alert("❌ Gagal menyimpan buku");
+        alert(result.message || "❌ Gagal menyimpan buku");
       }
     } catch (error) {
-      console.error("Error:", error);
-      alert("❌ Terjadi kesalahan");
+      console.error("Error: ", error);
+      alert("❌ Terjadi Kesalahan");
     } finally {
       setIsLoading(false);
     }
@@ -91,7 +111,7 @@ const BookModal = ({ selectedItem, setShowModal, setBooks }) => {
     publisher: Building2,
     publish_year: Calendar,
     stock: Hash,
-    description: FileText
+    description: FileText,
   };
 
   const fieldLabels = {
@@ -100,7 +120,7 @@ const BookModal = ({ selectedItem, setShowModal, setBooks }) => {
     publisher: "Penerbit",
     publish_year: "Tahun Terbit",
     stock: "Stok",
-    description: "Deskripsi"
+    description: "Deskripsi",
   };
 
   return (
@@ -119,7 +139,9 @@ const BookModal = ({ selectedItem, setShowModal, setBooks }) => {
                   {selectedItem ? "Edit Buku" : "Tambah Buku Baru"}
                 </h2>
                 <p className="text-blue-100 text-sm">
-                  {selectedItem ? "Perbarui informasi buku" : "Tambahkan buku baru ke perpustakaan"}
+                  {selectedItem
+                    ? "Perbarui informasi buku"
+                    : "Tambahkan buku baru ke perpustakaan"}
                 </p>
               </div>
             </div>
@@ -137,29 +159,37 @@ const BookModal = ({ selectedItem, setShowModal, setBooks }) => {
           {/* Form Section */}
           <div className="flex-1 p-8 overflow-y-auto">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {["title", "author", "publisher", "publish_year", "stock"].map((field) => {
-                const Icon = fieldIcons[field];
-                return (
-                  <div key={field} className="group relative">
-                    <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2">
-                      <Icon className="w-4 h-4 text-blue-600" />
-                      {fieldLabels[field]}
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={field === "publish_year" || field === "stock" ? "number" : "text"}
-                        placeholder={`Masukkan ${fieldLabels[field].toLowerCase()}`}
-                        value={form[field]}
-                        onChange={(e) =>
-                          setForm({ ...form, [field]: e.target.value })
-                        }
-                        className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 bg-gray-50 hover:bg-white group-hover:border-gray-300"
-                      />
-                      <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none"></div>
+              {["title", "author", "publisher", "publish_year", "stock"].map(
+                (field) => {
+                  const Icon = fieldIcons[field];
+                  return (
+                    <div key={field} className="group relative">
+                      <label className="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2">
+                        <Icon className="w-4 h-4 text-blue-600" />
+                        {fieldLabels[field]}
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={
+                            field === "publish_year" || field === "stock"
+                              ? "number"
+                              : "text"
+                          }
+                          placeholder={`Masukkan ${fieldLabels[
+                            field
+                          ].toLowerCase()}`}
+                          value={form[field]}
+                          onChange={(e) =>
+                            setForm({ ...form, [field]: e.target.value })
+                          }
+                          className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-200 bg-gray-50 hover:bg-white group-hover:border-gray-300"
+                        />
+                        <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none"></div>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                }
+              )}
             </div>
 
             {/* Description */}
@@ -190,13 +220,13 @@ const BookModal = ({ selectedItem, setShowModal, setBooks }) => {
                 <Camera className="w-5 h-5 text-blue-600" />
                 Cover Buku
               </h3>
-              
+
               {/* Upload Area */}
-              <div 
+              <div
                 className={`flex-1 border-2 border-dashed rounded-2xl transition-all duration-300 relative overflow-hidden ${
-                  dragOver 
-                    ? 'border-blue-500 bg-blue-50 scale-105' 
-                    : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50/50'
+                  dragOver
+                    ? "border-blue-500 bg-blue-50 scale-105"
+                    : "border-gray-300 hover:border-blue-400 hover:bg-blue-50/50"
                 }`}
                 onDragOver={(e) => {
                   e.preventDefault();
@@ -295,25 +325,29 @@ const BookModal = ({ selectedItem, setShowModal, setBooks }) => {
 
       <style jsx>{`
         @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
         }
-        
+
         @keyframes scaleIn {
-          from { 
-            opacity: 0; 
-            transform: scale(0.95) translateY(20px); 
+          from {
+            opacity: 0;
+            transform: scale(0.95) translateY(20px);
           }
-          to { 
-            opacity: 1; 
-            transform: scale(1) translateY(0); 
+          to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
           }
         }
-        
+
         .animate-fadeIn {
           animation: fadeIn 0.2s ease-out;
         }
-        
+
         .animate-scaleIn {
           animation: scaleIn 0.3s ease-out;
         }

@@ -1,5 +1,6 @@
 "use client";
 import { Plus, Edit, Trash2 } from "lucide-react";
+import { API_BASE } from "@/lib/api";
 
 export default function Books({
   books,
@@ -7,6 +8,27 @@ export default function Books({
   setShowModal,
   setSelectedItem,
 }) {
+  const token = localStorage.getItem("token");
+
+  const handleDelete = async (book) => {
+    if (!confirm("Yakin hapus buku ini?")) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/books/${book.id_book}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) throw new Error("Gagal hapus buku");
+      const data = await res.json();
+      alert(data.message || "Buku berhasil dihapus");
+
+      setBooks((prev) => prev.filter((b) => b.id_book !== book.id_book));
+    } catch (err) {
+      console.error(err);
+      alert("❌ Terjadi kesalahan saat hapus buku");
+    }
+  };
+
   return (
     <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
       {/* Header */}
@@ -28,15 +50,32 @@ export default function Books({
         <table className="w-full">
           <thead className="bg-slate-50">
             <tr>
+              <th className="px-6 py-4 text-left text-sm font-medium">Cover</th>
               <th className="px-6 py-4 text-left text-sm font-medium">Judul</th>
-              <th className="px-6 py-4 text-left text-sm font-medium">Penulis</th>
-              <th className="px-6 py-4 text-left text-sm font-medium">Kategori</th>
+              <th className="px-6 py-4 text-left text-sm font-medium">
+                Penulis
+              </th>
+              <th className="px-6 py-4 text-left text-sm font-medium">
+                Kategori
+              </th>
               <th className="px-6 py-4 text-left text-sm font-medium">Aksi</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
             {books.map((book) => (
-              <tr key={book.id_book || book.id} className="hover:bg-slate-50">
+              <tr key={book.id} className="hover:bg-slate-50">
+                 {/* Cover */}
+                <td className="px-6 py-4">
+                  {book.cover ? (
+                    <img
+                      src={book.cover}
+                      alt={book.title}
+                      className="w-12 h-16 object-cover rounded"
+                    />
+                  ) : (
+                    "-"
+                  )}
+                </td>
                 {/* Judul */}
                 <td className="px-6 py-4 text-sm">{book.title}</td>
 
@@ -45,11 +84,9 @@ export default function Books({
 
                 {/* Kategori */}
                 <td className="px-6 py-4 text-sm">
-                  {/* relasi many-to-many */}
                   {book.categories && book.categories.length > 0
                     ? book.categories.map((c) => c.category_name).join(", ")
-                    : // fallback kalau API langsung kasih category_name
-                      book.category_name || "-"}
+                    : book.category_name || "-"}
                 </td>
 
                 {/* Aksi */}
@@ -64,13 +101,7 @@ export default function Books({
                     <Edit className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() => {
-                      if (confirm("Yakin hapus buku ini?")) {
-                        setBooks((prev) =>
-                          prev.filter((b) => b.id_book !== book.id_book)
-                        );
-                      }
-                    }}
+                    onClick={() => handleDelete(book)}
                     className="text-red-600 hover:text-red-800"
                   >
                     <Trash2 className="w-4 h-4" />

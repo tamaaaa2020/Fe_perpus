@@ -216,12 +216,6 @@ useEffect(() => {
               </div>
               <div className="text-slate-600">Buku Dipinjam</div>
             </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold text-orange-600 mb-2">
-                4.8⭐
-              </div>
-              <div className="text-slate-600">Rating Rata-rata</div>
-            </div>
           </div>
         </div>
       </section>

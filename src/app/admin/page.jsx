@@ -367,7 +367,7 @@ const AdminPetugasDashboard = () => {
 
       {/* === MODALS === */}
       {showModal === "book" && (
-        <BookModal selectedItem={selectedItem} setShowModal={setShowModal} />
+        <BookModal selectedItem={selectedItem} setShowModal={setShowModal} setBooks={setBooks} />
       )}
       {showModal === "category" && (
         <CategoryModal selectedItem={selectedItem} setShowModal={setShowModal} />
