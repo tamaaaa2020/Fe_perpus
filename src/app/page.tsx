@@ -1,3 +1,4 @@
+// src/app/page.tsx or src/app/page.jsx
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -18,14 +19,18 @@ type Book = {
   title: string;
   author: string;
   cover: string;
-  rating: number;
-  genre: string;
   available: boolean;
   description: string;
+  genre?: string;
+  rating?: number;
 };
+
+const API =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api";
 
 const LandingPage: React.FC = () => {
   const router = useRouter();
+
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -34,29 +39,54 @@ const LandingPage: React.FC = () => {
     borrowed_books: 0,
   });
 
-  // mock API
-useEffect(() => {
-  const fetchLandingData = async () => {
-    try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/landing`
-      );
-      const data = await res.json();
+  useEffect(() => {
+    const fetchLandingData = async () => {
+      try {
+        const res = await fetch(`${API}/landing`, {
+          headers: { Accept: "application/json" },
+        });
+        const data = await res.json();
 
-      setBooks(data.popularBooks || []);
+        // stats (snake_case dari BE)
+        setStats(
+          data?.stats ?? {
+            total_books: 0,
+            active_members: 0,
+            borrowed_books: 0,
+          }
+        );
 
-      setStats(data.stats);
-    } catch(err) {
-      console.error("Gagal Fetching landing data:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-  fetchLandingData();
-}, []);
+        // map 'popular_books' (snake_case) → Book[]
+        const list: Book[] = (data?.popular_books ?? []).map((b: any) => ({
+          id: b.id,
+          title: b.title,
+          author: b.author,
+          cover:
+            b.cover ||
+            "https://via.placeholder.com/400x600?text=No+Cover",
+          available: !!b.available,
+          description: b.description ?? "",
+          genre:
+            Array.isArray(b.genres) && b.genres.length
+              ? b.genres[0]
+              : "Umum",
+          rating:
+            typeof b.rating === "number" ? b.rating : 4.8, // fallback biar UI nggak kosong
+        }));
+
+        setBooks(list);
+      } catch (err) {
+        console.error("Gagal fetching landing data:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLandingData();
+  }, []);
 
   const handleBorrowClick = (bookId: number) => {
-    // Arahkan ke register saat klik Pinjam
+    // belum login → arahkan ke register/login
     router.push("/register");
   };
 
@@ -64,7 +94,9 @@ useEffect(() => {
     <div className="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 group overflow-hidden border border-slate-100">
       <div className="relative overflow-hidden">
         <img
-          src={book.cover || "https://via.placeholder.com/400x600?text=No+Cover"}
+          src={
+            book.cover || "https://via.placeholder.com/400x600?text=No+Cover"
+          }
           alt={book.title}
           className="w-full h-64 object-cover group-hover:scale-105 transition-transform duration-300"
         />
@@ -82,7 +114,7 @@ useEffect(() => {
         <div className="absolute top-4 left-4 bg-black/20 backdrop-blur-sm rounded-lg px-2 py-1">
           <div className="flex items-center text-white text-sm">
             <Star className="w-4 h-4 text-yellow-400 mr-1" />
-            {book.rating}
+            {book.rating?.toFixed?.(1) ?? book.rating ?? 0}
           </div>
         </div>
       </div>
@@ -126,7 +158,7 @@ useEffect(() => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100">
-      {/* Navigation */}
+      {/* NAV */}
       <nav className="fixed top-0 w-full bg-white/90 backdrop-blur-md border-b border-slate-200/50 z-50">
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
@@ -156,7 +188,7 @@ useEffect(() => {
         </div>
       </nav>
 
-      {/* Hero Section */}
+      {/* HERO */}
       <section className="pt-32 pb-12 px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="text-center">
@@ -194,7 +226,7 @@ useEffect(() => {
         </div>
       </section>
 
-      {/* Stats Section */}
+      {/* STATS */}
       <section className="py-12 bg-white/50">
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
@@ -220,7 +252,7 @@ useEffect(() => {
         </div>
       </section>
 
-      {/* Popular Books Section */}
+      {/* POPULAR BOOKS */}
       <section className="py-20 bg-gradient-to-br from-slate-50 to-white">
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <div className="text-center mb-16">
@@ -267,7 +299,7 @@ useEffect(() => {
         </div>
       </section>
 
-      {/* Features Section */}
+      {/* FEATURES */}
       <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <div className="text-center mb-16">
@@ -322,7 +354,7 @@ useEffect(() => {
         </div>
       </section>
 
-      {/* CTA Section */}
+      {/* CTA */}
       <section className="py-20 bg-gradient-to-r from-indigo-600 to-purple-600 relative overflow-hidden">
         <div className="absolute inset-0 bg-black/10" />
         <div className="max-w-4xl mx-auto text-center px-6 lg:px-8 relative">
@@ -344,7 +376,7 @@ useEffect(() => {
         </div>
       </section>
 
-      {/* Footer */}
+      {/* FOOTER */}
       <footer className="py-12 bg-slate-900">
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <div className="text-center">

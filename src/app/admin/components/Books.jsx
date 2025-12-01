@@ -52,19 +52,15 @@ export default function Books({
             <tr>
               <th className="px-6 py-4 text-left text-sm font-medium">Cover</th>
               <th className="px-6 py-4 text-left text-sm font-medium">Judul</th>
-              <th className="px-6 py-4 text-left text-sm font-medium">
-                Penulis
-              </th>
-              <th className="px-6 py-4 text-left text-sm font-medium">
-                Kategori
-              </th>
+              <th className="px-6 py-4 text-left text-sm font-medium">Penulis</th>
+              <th className="px-6 py-4 text-left text-sm font-medium">Kategori</th>
               <th className="px-6 py-4 text-left text-sm font-medium">Aksi</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
             {books.map((book) => (
-              <tr key={book.id} className="hover:bg-slate-50">
-                 {/* Cover */}
+              <tr key={book.id_book} className="hover:bg-slate-50">
+                {/* Cover */}
                 <td className="px-6 py-4">
                   {book.cover ? (
                     <img
@@ -111,10 +107,7 @@ export default function Books({
             ))}
             {books.length === 0 && (
               <tr>
-                <td
-                  colSpan={4}
-                  className="px-6 py-8 text-center text-slate-500"
-                >
+                <td colSpan={4} className="px-6 py-8 text-center text-slate-500">
                   Belum ada buku.
                 </td>
               </tr>

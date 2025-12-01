@@ -109,7 +109,7 @@ const Login = () => {
                   <Globe className="w-6 h-6 text-white" />
                 </div>
                 <span className="text-2xl font-bold text-slate-800">
-                  Pocker Library
+                  Pocket Library
                 </span>
               </div>
               <h2 className="text-2xl font-bold text-slate-900 mb-2">

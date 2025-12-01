@@ -8,286 +8,349 @@ import {
   Star,
   Clock,
   Search,
-  Filter,
-  User,
+  Filter as Funnel,
+  User as UserIcon,
   LogOut,
   Bell,
   Eye,
   MessageSquare,
+  CheckCircle2,
+  CalendarClock,
+  AlertTriangle,
+  XCircle,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-const Dashboard = () => {
+const API = "http://localhost:8000/api";
+
+// Konsistensi id buku
+const getBookId = (b) => b?.id_book ?? b?.id;
+
+// Helper fetch aman
+async function apiFetch(url, opts = {}, token) {
+  const headers = {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(opts.headers || {}),
+  };
+
+  const res = await fetch(url, { ...opts, headers });
+  const raw = await res.text();
+  let data;
+  try {
+    data = raw ? JSON.parse(raw) : null;
+  } catch {
+    data = { message: raw };
+  }
+  return { ok: res.ok, status: res.status, data };
+}
+
+export default function Dashboard() {
   const router = useRouter();
 
+  // State
   const [activeTab, setActiveTab] = useState("books");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [showBookDetail, setShowBookDetail] = useState(null);
-  const [showRatingModal, setShowRatingModal] = useState(null);
-  const [userRating, setUserRating] = useState(0);
-  const [userReview, setUserReview] = useState("");
-  const [showReportModal, setShowReportModal] = useState(null);
-  const [reportReason, setReportReason] = useState("");
+  const [showReturnModal, setShowReturnModal] = useState(null);
+  const [returnCondition, setReturnCondition] = useState("baik");
+  const [returnNote, setReturnNote] = useState("");
+  const [showReviewModal, setShowReviewModal] = useState(null);
+  const [reviewText, setReviewText] = useState("");
+  const [reviewRating, setReviewRating] = useState(0);
 
-  // books state
   const [books, setBooks] = useState([]);
   const [loadingBooks, setLoadingBooks] = useState(true);
-
-  // user state
   const [user, setUser] = useState(null);
+  const [borrowHistory, setBorrowHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
+  const [historyFilter, setHistoryFilter] = useState("all");
+  const [historyQuery, setHistoryQuery] = useState("");
+  const [collections, setCollections] = useState([]);
 
-  // fetch user
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifDropdown, setShowNotifDropdown] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // SSR-safe state
+  const [isClient, setIsClient] = useState(false);
+  const [token, setToken] = useState(null);
+
+  // Initialize client-only data
   useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const res = await fetch("http://localhost:8000/api/user", {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!res.ok) throw new Error("Gagal fetch user");
-        const data = await res.json();
-        setUser(data);
-      } catch (err) {
-        console.error(err);
-        setUser({ name: "Guest" }); // fallback biar UI tetap jalan
-      }
-    };
-
-    fetchUser();
+    setIsClient(true);
+    const storedToken = localStorage.getItem("token");
+    setToken(storedToken);
   }, []);
 
-  // fetch books
+  // Fetch Profile
   useEffect(() => {
-    const fetchBooks = async () => {
-      try {
-        const res = await fetch("http://localhost:8000/api/books", {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-            "Content-Type": "application/json",
-          },
-        });
+    if (!token) return;
+    (async () => {
+      const { ok, data } = await apiFetch(`${API}/user`, {}, token);
+      if (ok) setUser(data);
+      else setUser({ username: "user" });
+    })();
+  }, [token]);
 
-        if (!res.ok) throw new Error("Gagal fetch buku");
-        const data = await res.json();
-        setBooks(data.data || data);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoadingBooks(false);
-      }
-    };
+  // Fetch Katalog
+  useEffect(() => {
+    if (!token) return;
+    (async () => {
+      setLoadingBooks(true);
+      const { ok, data } = await apiFetch(`${API}/books`, {}, token);
+      if (ok) setBooks(data?.data || data || []);
+      setLoadingBooks(false);
+    })();
+  }, [token]);
 
-    fetchBooks();
-  }, []);
+  // Fetch Riwayat
+  const fetchBorrowHistory = async () => {
+    if (!token) return;
+    setLoadingHistory(true);
+    const { ok, data } = await apiFetch(`${API}/my-loans`, {}, token);
+    if (ok) setBorrowHistory(Array.isArray(data) ? data : []);
+    setLoadingHistory(false);
+  };
+  useEffect(() => {
+    if (token) fetchBorrowHistory();
+  }, [token]);
 
-  // logout function
+  // Fetch Koleksi
+  const fetchCollections = async () => {
+    if (!token) return;
+    const { ok, data } = await apiFetch(`${API}/collections`, {}, token);
+    if (ok) setCollections(data || []);
+  };
+  useEffect(() => {
+    if (token) fetchCollections();
+  }, [token]);
+
+  // Fetch Notifikasi (polling)
+  const fetchNotifications = async () => {
+    if (!token) return;
+    const { ok, data } = await apiFetch(`${API}/notifications`, {}, token);
+    if (ok) {
+      setNotifications(Array.isArray(data) ? data : []);
+      setUnreadCount((Array.isArray(data) ? data : []).length);
+    }
+  };
+  useEffect(() => {
+    if (!token) return;
+    fetchNotifications();
+    const intv = setInterval(fetchNotifications, 10000);
+    return () => clearInterval(intv);
+  }, [token]);
+
+  // ===================================================================
+  // ACTIONS
+  // ===================================================================
+
   const handleLogout = () => {
     localStorage.removeItem("token");
+    setToken(null);
     router.push("/login");
   };
 
-  const [borrowHistory, setBorrowHistory] = useState([]);
-  const [reviews, setReviews] = useState([]);
-  const [collections, setCollections] = useState([]);
-
-  const fetchBorrowHistory = async () => {
-    try {
-      const res = await fetch("http://localhost:8000/api/my-loans", {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-          "Content-Type": "application/json",
-        },
-      });
-      if(!res.ok) throw new Error("Gagal Fetch Riwayat");
-      const data = await res.json();
-      setBorrowHistory(data);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  useEffect(() => {
-    fetchBorrowHistory();
-  }, []);
-
   const borrowBook = async (bookId) => {
-    try {
-      const res = await fetch("http://localhost:8000/api/loans", {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({id_book: bookId}),
-      });
-      const data = await res.json();
-      if(!res.ok){
-        alert(data?.message || "Gagal meminjam buku");
-        return;
-      }
-      alert(data.message);
-
-      setBooks((prev) =>
-      prev.map((book) =>
-        book.id === bookId ? {...book, stock: book.stock - 1} : book
-      )
+    const { ok, data } = await apiFetch(
+      `${API}/loans`,
+      { method: "POST", body: JSON.stringify({ id_book: bookId }) },
+      token
     );
 
-      fetchBorrowHistory();
-    } catch (err) {
-      console.error(err);
-      alert("Terjadi Kesalahan jaringan saat meminjam buku");
+    if (!ok) {
+      alert(data?.message || "Gagal meminjam buku");
+      return;
     }
+
+    alert(data?.message || "Pengajuan peminjaman berhasil.");
+    setBooks((prev) =>
+      prev.map((bk) =>
+        getBookId(bk) === bookId ? { ...bk, stock: Math.max(0, (bk.stock || 1) - 1) } : bk
+      )
+    );
+    fetchBorrowHistory();
+    fetchNotifications();
+  };
+
+  const handlePickupBook = async (loanId) => {
+    const { ok, data } = await apiFetch(
+      `${API}/loans/${loanId}/pickup`,
+      { method: "PUT" },
+      token
+    );
+    if (!ok) {
+      alert(data?.message || "Gagal konfirmasi");
+      return;
+    }
+    alert(data?.message || "Buku diambil");
+    fetchBorrowHistory();
+    fetchNotifications();
+  };
+
+  const handleSubmitReturnRequest = async () => {
+    const { ok, data } = await apiFetch(
+      `${API}/loans/${showReturnModal.id_loan}/return-request`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ condition: returnCondition, note: returnNote || null }),
+      },
+      token
+    );
+    if (!ok) {
+      alert(data?.message || "Gagal mengajukan pengembalian");
+      return;
+    }
+    alert(data?.message || "Permintaan terkirim");
+    setShowReturnModal(null);
+    fetchBorrowHistory();
+    fetchNotifications();
   };
 
   const toggleFavorite = async (bookId) => {
-    try {
-      const res = await fetch(
-        `http://localhost:8000/api/collections/${bookId}`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-      if (!res.ok) throw new Error("Gagal Update Favorite");
-      const data = await res.json();
-
-      fetchCollections();
-      alert(data.message);
-    } catch (err) {
-      console.error(err);
-      alert("Terjadi Kesalahan Saat Update Favorite");
+    const { ok, data } = await apiFetch(
+      `${API}/collections/${bookId}`,
+      { method: "POST" },
+      token
+    );
+    if (!ok) {
+      alert(data?.message || "Gagal update favorit");
+      return;
     }
+    alert(data?.message || "Koleksi diperbarui");
+    fetchCollections();
   };
 
   const isFavorites = (bookId) => {
-    return collections.some((item) => item.book?.id === bookId || item.book?.id_book === bookId);
+    const idNum = Number(bookId);
+    return collections.some((item) => Number(getBookId(item.book)) === idNum);
   };
 
-  const fetchCollections = async () => {
-    try {
-      const res = await fetch("http://localhost:8000/api/collections", {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-          "Content-Type": "application/json",
-        },
-      });
-      if (!res.ok) throw new Error("Gagal fetch Favorite");
-      const data = await res.json();
-      setCollections(data);
-    } catch (err) {
-      console.log(err);
+  const submitReview = async () => {
+    if (!showReviewModal || reviewRating < 1) {
+      alert("Pilih rating terlebih dahulu!");
+      return;
     }
+
+    const { ok, data } = await apiFetch(
+      `${API}/reviews/${getBookId(showReviewModal.book)}`,
+      {
+        method: "POST",
+        body: JSON.stringify({ review: reviewText, rating: reviewRating }),
+      },
+      token
+    );
+
+    if (!ok) {
+      alert(data?.message || "Gagal mengirim ulasan");
+      return;
+    }
+
+    alert("Ulasan berhasil dikirim!");
+    setShowReviewModal(null);
+    setReviewText("");
+    setReviewRating(0);
+    fetchBorrowHistory();
   };
 
-  useEffect(() => {
-    fetchCollections();
-  }, []);
-
-  const submitRating = async () => {
-    const newReview = {
-      id: reviews.length + 1,
-      book_id: showRatingModal,
-      book_title: books.find((b) => b.id === showRatingModal)?.title,
-      user_name: user?.name || "Saya",
-      rating: userRating,
-      review: userReview,
-      created_at: new Date().toISOString().split("T")[0],
-      is_mine: true,
-    };
-
-    setReviews([newReview, ...reviews]);
-    setShowRatingModal(null);
-    setUserRating(0);
-    setUserReview("");
-    alert("Rating dan ulasan berhasil disimpan!");
-  };
-
-  const reportReview = async () => {
-    alert("Laporan berhasil dikirim ke admin");
-    setShowReportModal(null);
-    setReportReason("");
-  };
-
-  const deleteReview = async (reviewId) => {
-    setReviews(reviews.filter((review) => review.id !== reviewId));
-    alert("Ulasan berhasil dihapus");
-  };
-
-  const filteredBooks = books.filter((book) => {
-    const matchesSearch =
-      book.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      book.author.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory =
-      selectedCategory === "all" ||
-      (book.categories &&
-        book.categories.some((c) => c.category_name === selectedCategory));
-    return matchesSearch && matchesCategory;
-  });
+  // ===================================================================
+  // UI HELPERS
+  // ===================================================================
 
   const renderStars = (rating = 0, interactive = false, onRate = null) => {
+    const r = Number(rating) || 0;
     return (
       <div className="flex items-center space-x-1">
         {[1, 2, 3, 4, 5].map((star) => (
           <button
             key={star}
             onClick={() => interactive && onRate && onRate(star)}
-            className={`${
-              interactive ? "cursor-pointer hover:scale-110" : "cursor-default"
-            } transition-transform`}
+            className={`${interactive ? "cursor-pointer hover:scale-110" : "cursor-default"} transition-transform`}
             disabled={!interactive}
           >
-            <Star
-              className={`w-4 h-4 ${
-                star <= rating
-                  ? "text-yellow-400 fill-current"
-                  : "text-slate-300"
-              }`}
-            />
+            <Star className={`w-4 h-4 ${star <= r ? "text-yellow-400 fill-current" : "text-slate-300"}`} />
           </button>
         ))}
-        <span className="text-sm text-slate-600 ml-2">{rating.toFixed(1)}</span>
+        <span className="text-sm text-slate-600 ml-2">{r.toFixed(1)}</span>
       </div>
     );
   };
 
+  const filteredBooks = books.filter((book) => {
+    const title = (book.title || "").toLowerCase();
+    const author = (book.author || "").toLowerCase();
+    const matchesSearch = title.includes(searchTerm.toLowerCase()) || author.includes(searchTerm.toLowerCase());
+    const matchesCategory =
+      selectedCategory === "all" ||
+      (book.categories && book.categories.some((c) => c.category_name === selectedCategory));
+    return matchesSearch && matchesCategory;
+  });
+
+  const formatDate = (dateStr) => (!dateStr ? "-" : new Date(dateStr).toLocaleDateString("id-ID"));
+  const dayDiff = (a, b) => Math.floor((a - b) / (1000 * 60 * 60 * 24));
+
+  const STATUS_META = {
+    pending: { text: "Menunggu", chip: "bg-amber-50 text-amber-700 border-amber-200", icon: Clock },
+    siap_diambil: { text: "Siap Diambil", chip: "bg-cyan-50 text-cyan-700 border-cyan-200", icon: CalendarClock },
+    dipinjam: { text: "Dipinjam", chip: "bg-indigo-50 text-indigo-700 border-indigo-200", icon: BookOpen },
+    menunggu_validasi_pengembalian: { text: "Menunggu Validasi", chip: "bg-violet-50 text-violet-700 border-violet-200", icon: CheckCircle2 },
+    dikembalikan: { text: "Dikembalikan", chip: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: CheckCircle2 },
+    rusak: { text: "Rusak", chip: "bg-red-50 text-red-700 border-red-200", icon: AlertTriangle },
+    hilang: { text: "Hilang", chip: "bg-orange-50 text-orange-700 border-orange-200", icon: XCircle },
+    ditolak: { text: "Ditolak", chip: "bg-slate-50 text-slate-600 border-slate-200", icon: XCircle },
+    terlambat: { text: "Terlambat", chip: "bg-rose-50 text-rose-700 border-rose-200", icon: AlertTriangle },
+  };
+
+  const StatusBadge = ({ status }) => {
+    const meta = STATUS_META[status] || STATUS_META.pending;
+    const Icon = meta.icon;
+    return (
+      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border ${meta.chip}`}>
+        <Icon className="w-3.5 h-3.5" />
+        {meta.text}
+      </span>
+    );
+  };
+
+  const statusBorder = (status) => {
+    const map = {
+      pending: "from-amber-500/60 to-amber-400/40",
+      siap_diambil: "from-cyan-500/60 to-cyan-400/40",
+      dipinjam: "from-indigo-500/60 to-indigo-400/40",
+      menunggu_validasi_pengembalian: "from-violet-500/60 to-violet-400/40",
+      dikembalikan: "from-emerald-500/60 to-emerald-400/40",
+      rusak: "from-red-500/60 to-red-400/40",
+      hilang: "from-orange-500/60 to-orange-400/40",
+      ditolak: "from-slate-400/60 to-slate-300/40",
+    };
+    return map[status] || map.ditolak;
+  };
+
+  // ===================================================================
+  // RENDER: FAVORIT
+  // ===================================================================
   const renderFavorites = () => (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="text-xl font-semibold text-slate-900">
-          Koleksi Favorit
-        </h3>
+        <h3 className="text-xl font-semibold text-slate-900">Koleksi Favorit</h3>
         <span className="text-slate-600">{collections.length} buku</span>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {collections.map((item) => {
           const book = item.book;
+          const id = getBookId(book);
           return (
-            <div
-              key={item.id_collection}
-              className="bg-white rounded-2xl shadow-lg border"
-            >
+            <div key={item.id_collection} className="bg-white rounded-2xl shadow-lg border">
               <div className="aspect-[3/4]">
-                <img
-                  src={book.cover || "https://via.placeholder.com/200x300"}
-                  alt={book.title}
-                  className="w-full h-full object-cover"
-                />
+                <img src={book.cover || "https://via.placeholder.com/200x300"} alt={book.title} className="w-full h-full object-cover" />
               </div>
               <div className="p-4">
                 <h3 className="font-semibold">{book.title}</h3>
                 <p className="text-sm text-slate-600">{book.author}</p>
-                <button
-                  onClick={() => toggleFavorite(book.id)}
-                  className="mt-3 px-3 py-1 bg-red-500 text-white rounded-lg"
-                >
+                <button onClick={() => toggleFavorite(id)} className="mt-3 px-3 py-1 bg-red-500 text-white rounded-lg">
                   Hapus dari Koleksi
                 </button>
               </div>
@@ -298,65 +361,209 @@ const Dashboard = () => {
     </div>
   );
 
-  const renderHistory = () => (
-    <div className="space-y-6">
-      <h3 className="text-xl font-semibold">Riwayat Peminjaman</h3>
-      {borrowHistory.length === 0 ? (
-        <p className="text-slate-500">Belum ada riwayat.</p>
-      ) : (
-        <div className="space-y-4">
-          {borrowHistory.map((loan) => (
-            <div
-              key={loan.id_loan}
-              className="bg-white rounded-xl shadow p-4 flex items-center justify-between border"
-            >
-              <div className="flex items-center space-x-4">
-                <img
-                  src={loan.book.cover || "https://via.placeholder.com/80x120"}
-                  alt={loan.book.title}
-                  className="w-16 h-20 object-cover rounded"
-                />
-                <div>
-                  <h4 className="font-semibold">{loan.book.title}</h4>
-                  <p className="text-sm text-slate-600">
-                    Status: {loan.status}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    Pinjam: {loan.tanggal_peminjaman || "-"}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    Kembali: {loan.tanggal_pengembalian || "-"}
-                  </p>
+  // ===================================================================
+  // RENDER: RIWAYAT
+  // ===================================================================
+  const renderHistory = () => {
+    const now = new Date();
+    const list = borrowHistory
+      .filter((l) => historyFilter === "all" || l.status === historyFilter)
+      .filter((l) => (historyQuery ? (l.book?.title || "").toLowerCase().includes(historyQuery.toLowerCase()) : true));
+
+    const totalPending = borrowHistory.filter((x) => x.status === "pending").length;
+    const totalBorrowed = borrowHistory.filter((x) => x.status === "dipinjam").length;
+    const totalWaitingReturn = borrowHistory.filter((x) => x.status === "menunggu_validasi_pengembalian").length;
+
+    return (
+      <div className="space-y-6">
+        <div className="bg-white border rounded-xl p-4 flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="px-3 py-1 rounded-lg bg-slate-100 text-slate-700 text-sm">Total: <span className="font-semibold">{borrowHistory.length}</span></div>
+            <div className="px-3 py-1 rounded-lg bg-amber-50 text-amber-700 text-sm">Pending: <span className="font-semibold">{totalPending}</span></div>
+            <div className="px-3 py-1 rounded-lg bg-indigo-50 text-indigo-700 text-sm">Dipinjam: <span className="font-semibold">{totalBorrowed}</span></div>
+            <div className="px-3 py-1 rounded-lg bg-violet-50 text-violet-700 text-sm">Menunggu Validasi: <span className="font-semibold">{totalWaitingReturn}</span></div>
+          </div>
+          <div className="flex gap-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input value={historyQuery} onChange={(e) => setHistoryQuery(e.target.value)} placeholder="Cari judul buku…" className="pl-9 pr-3 py-2 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+            <select value={historyFilter} onChange={(e) => setHistoryFilter(e.target.value)} className="px-3 py-2 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="all">Semua Status</option>
+              <option value="pending">Pending</option>
+              <option value="siap_diambil">Siap Diambil</option>
+              <option value="dipinjam">Dipinjam</option>
+              <option value="menunggu_validasi_pengembalian">Menunggu Validasi</option>
+              <option value="dikembalikan">Dikembalikan</option>
+              <option value="rusak">Rusak</option>
+              <option value="hilang">Hilang</option>
+              <option value="ditolak">Ditolak</option>
+            </select>
+          </div>
+        </div>
+
+        {loadingHistory ? (
+          <div className="space-y-3">
+            {[...Array(3)].map((_, i) => <div key={i} className="h-28 rounded-xl border animate-pulse bg-slate-100" />)}
+          </div>
+        ) : list.length === 0 ? (
+          <div className="text-center py-16 bg-white border rounded-2xl">
+            <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-slate-100 text-slate-500 mb-3">
+              <Clock className="w-5 h-5" />
+            </div>
+            <p className="text-slate-600">Belum ada riwayat yang cocok.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {list.map((loan) => {
+              const due = loan.due_date ? new Date(loan.due_date) : null;
+              const daysLeft = due ? dayDiff(due, now) : null;
+              const isOver = due && daysLeft < 0 && ["dipinjam", "siap_diambil"].includes(loan.status);
+
+              return (
+                <div key={loan.id_loan} className="relative bg-white rounded-xl shadow-sm border overflow-hidden">
+                  <div className={`absolute inset-y-0 left-0 w-1 bg-gradient-to-b ${statusBorder(loan.status)}`} />
+                  <div className="p-4 md:p-5 pl-5 md:pl-6 grid grid-cols-[auto,1fr,auto] gap-4">
+                    <img src={loan.book.cover || "https://via.placeholder.com/80x120"} alt={loan.book.title} className="w-16 h-20 md:w-20 md:h-24 object-cover rounded-md border" />
+                    <div className="min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <h4 className="font-semibold text-slate-900 truncate">{loan.book.title}</h4>
+                        <StatusBadge status={loan.status} />
+                      </div>
+                      <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
+                        <div className="px-3 py-2 rounded-lg bg-slate-50 border"><p className="text-slate-500">Pinjam</p><p className="font-medium">{formatDate(loan.tanggal_peminjaman)}</p></div>
+                        <div className="px-3 py-2 rounded-lg bg-slate-50 border"><p className="text-slate-500">Jatuh Tempo</p><p className="font-medium">{formatDate(loan.due_date)}</p></div>
+                        <div className="px-3 py-2 rounded-lg bg-slate-50 border"><p className="text-slate-500">Kembali</p><p className="font-medium">{formatDate(loan.tanggal_pengembalian)}</p></div>
+                      </div>
+                      {due && (
+                        <div className="mt-2">
+                          {isOver ? (
+                            <span className="inline-block text-xs font-semibold px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
+                              Terlambat {Math.abs(daysLeft)} hari
+                            </span>
+                          ) : loan.status === "dipinjam" ? (
+                            <span className="inline-block text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              Sisa {daysLeft} hari
+                            </span>
+                          ) : null}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-2 items-end text-right">
+                      {loan.status === "siap_diambil" && (
+                        <button onClick={() => handlePickupBook(loan.id_loan)} className="px-3 py-1.5 bg-cyan-600 text-white text-sm rounded-lg hover:bg-cyan-700 transition-colors">
+                          Ambil Buku
+                        </button>
+                      )}
+                      {loan.status === "dipinjam" && (
+                        <button
+                          onClick={() => {
+                            setShowReturnModal(loan);
+                            setReturnCondition("baik");
+                            setReturnNote("");
+                          }}
+                          className="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors"
+                        >
+                          Ajukan Pengembalian
+                        </button>
+                      )}
+                      {loan.status === "dikembalikan" && (
+                        <button
+                          onClick={() => {
+                            setShowReviewModal(loan);
+                            setReviewText("");
+                            setReviewRating(0);
+                          }}
+                          className="px-3 py-1.5 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700 transition-colors"
+                        >
+                          Beri Ulasan
+                        </button>
+                      )}
+                      {loan.status === "menunggu_validasi_pengembalian" && (
+                        <span className="text-xs text-purple-600 font-medium">Menunggu validasi…</span>
+                      )}
+                      {["rusak", "hilang", "ditolak"].includes(loan.status) && (
+                        <span className="text-xs text-red-600 font-medium">Selesai</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Modal Return */}
+        {showReturnModal && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-indigo-600" />
+                Ajukan Pengembalian
+              </h3>
+              <p className="text-sm text-slate-600 mb-4">Buku: <span className="font-semibold">{showReturnModal.book.title}</span></p>
+              <label className="block mb-2 text-sm font-medium">Kondisi Buku</label>
+              <select value={returnCondition} onChange={(e) => setReturnCondition(e.target.value)} className="w-full border border-slate-300 rounded-lg p-2 mb-4">
+                <option value="baik">Baik / Normal</option>
+                <option value="rusak">Rusak</option>
+                <option value="hilang">Hilang</option>
+              </select>
+              <label className="block mb-2 text-sm font-medium">Catatan (opsional)</label>
+              <textarea value={returnNote} onChange={(e) => setReturnNote(e.target.value)} rows={3} placeholder="Contoh: halaman sobek..." className="w-full border border-slate-300 rounded-lg p-2 text-sm mb-6 resize-none" />
+              <div className="flex justify-end space-x-2">
+                <button onClick={() => setShowReturnModal(null)} className="px-4 py-2 rounded-lg border text-slate-700">Batal</button>
+                <button onClick={handleSubmitReturnRequest} className="px-4 py-2 rounded-lg bg-indigo-600 text-white">Kirim</button>
               </div>
             </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+          </div>
+        )}
 
+        {/* Modal Ulasan */}
+        {showReviewModal && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Star className="w-5 h-5 text-yellow-500" />
+                Beri Ulasan & Rating
+              </h3>
+              <p className="text-sm text-slate-600 mb-4">Buku: <span className="font-semibold">{showReviewModal.book.title}</span></p>
+              <div className="mb-4">
+                <label className="block mb-2 text-sm font-medium">Rating</label>
+                <div className="flex justify-center gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button key={star} onClick={() => setReviewRating(star)} className="transition-transform hover:scale-110">
+                      <Star className={`w-8 h-8 ${star <= reviewRating ? "text-yellow-400 fill-current" : "text-slate-300"}`} />
+                    </button>
+                  ))}
+                </div>
+                <p className="text-center text-sm text-slate-600 mt-1">{reviewRating > 0 ? `${reviewRating} bintang` : "Pilih rating"}</p>
+              </div>
+              <label className="block mb-2 text-sm font-medium">Ulasan (opsional)</label>
+              <textarea value={reviewText} onChange={(e) => setReviewText(e.target.value)} rows={4} placeholder="Ceritakan pengalaman Anda..." className="w-full border border-slate-300 rounded-lg p-3 text-sm resize-none focus:ring-2 focus:ring-indigo-500" />
+              <div className="flex justify-end space-x-2 mt-6">
+                <button onClick={() => { setShowReviewModal(null); setReviewText(""); setReviewRating(0); }} className="px-4 py-2 rounded-lg border text-slate-700">Batal</button>
+                <button onClick={submitReview} className="px-4 py-2 rounded-lg bg-indigo-600 text-white disabled:opacity-50" disabled={reviewRating < 1}>Kirim</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ===================================================================
+  // RENDER: KATALOG
+  // ===================================================================
   const renderBooks = () => (
     <div className="space-y-6">
-      {/* Search and Filter */}
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Cari buku atau penulis..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-          />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+          <input type="text" placeholder="Cari buku atau penulis..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
         </div>
         <div className="relative">
-          <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
-          <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            className="pl-12 pr-8 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-          >
+          <Funnel className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+          <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)} className="pl-12 pr-8 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
             <option value="all">Semua Kategori</option>
             <option value="Programming">Programming</option>
             <option value="Technology">Technology</option>
@@ -365,131 +572,177 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Books Grid */}
       {loadingBooks ? (
         <p className="text-center text-slate-500">Loading buku...</p>
       ) : filteredBooks.length === 0 ? (
         <p className="text-center text-slate-500">Tidak ada buku ditemukan</p>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredBooks.map((book) => (
-            <div
-              key={book.id}
-              className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden hover:shadow-xl transition-shadow"
-            >
-              <div className="aspect-[3/4] relative overflow-hidden">
-                <img
-                  src={
-                    book.cover_url || "https://via.placeholder.com/200x300"
-                  }
-                  alt={book.title}
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute top-3 right-3">
-                  <button
-                    onClick={() => toggleFavorite(book.id)}
-                    className={`p-2 rounded-full ${
-                      isFavorites(book.id)
-                        ? "bg-red-500 text-white"
-                        : "bg-white/80 text-slate-600 hover:bg-red-500 hover:text-white"
-                    } transition-colors`}
-                  >
-                    <Heart
-                      className={`w-4 h-4 ${
-                        isFavorites(book.id) ? "fill-current" : ""
-                      }`}
-                    />
-                  </button>
-                </div>
-              </div>
-              <div className="p-4">
-                <h3 className="font-semibold text-slate-900 mb-1 line-clamp-2">
-                  {book.title}
-                </h3>
-                <p className="text-slate-600 text-sm mb-2">{book.author}</p>
-                <div className="mb-3">
-                  {renderStars(book.reviews_avg_rating || 0)}
-                  <span className="text-xs text-slate-500">
-                    ({book.reviews_count || 0} ulasan)
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span
-                    className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      book.stock > 0
-                        ? "bg-green-100 text-green-700"
-                        : "bg-red-100 text-red-700"
-                    }`}
-                  >
-                    {book.stock > 0 ? "Tersedia" : "Dipinjam"}
-                  </span>
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => setShowBookDetail(book)}
-                      className="p-2 text-slate-600 hover:text-indigo-600 transition-colors"
-                    >
-                      <Eye className="w-4 h-4" />
+          {filteredBooks.map((book) => {
+            const id = getBookId(book);
+            return (
+              <div key={id} className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden hover:shadow-xl transition-shadow">
+                <div className="aspect-[3/4] relative overflow-hidden">
+                  <img src={book.cover || "https://via.placeholder.com/200x300"} alt={book.title} className="w-full h-full object-cover" />
+                  <div className="absolute top-3 right-3">
+                    <button onClick={() => toggleFavorite(id)} className={`p-2 rounded-full ${isFavorites(id) ? "bg-red-500 text-white" : "bg-white/80 text-slate-600 hover:bg-red-500 hover:text-white"} transition-colors`}>
+                      <Heart className={`w-4 h-4 ${isFavorites(id) ? "fill-current" : ""}`} />
                     </button>
-                    {book.stock > 0 && (
-                      <button
-                        onClick={() => borrowBook(book.id)}
-                        className="px-3 py-1 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors"
-                      >
-                        Pinjam
+                  </div>
+                </div>
+                <div className="p-4">
+                  <h3 className="font-semibold text-slate-900 mb-1 line-clamp-2">{book.title}</h3>
+                  <p className="text-slate-600 text-sm mb-2">{book.author}</p>
+                  <div className="mb-3">
+                    {renderStars(book.reviews_avg_rating || 0)}
+                    <span className="text-xs text-slate-500">({book.reviews_count || 0} ulasan)</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${book.stock > 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
+                      {book.stock > 0 ? "Tersedia" : "Dipinjam"}
+                    </span>
+                    <div className="flex space-x-2">
+                      <button onClick={() => setShowBookDetail(book)} className="p-2 text-slate-600 hover:text-indigo-600 transition-colors">
+                        <Eye className="w-4 h-4" />
                       </button>
-                    )}
+                      {book.stock > 0 && (
+                        <button onClick={() => borrowBook(id)} className="px-3 py-1 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors">
+                          Pinjam
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
+            );
+          })}
+        </div>
+      )}
+
+      {showBookDetail && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h2 className="text-lg font-bold text-slate-800">{showBookDetail.title}</h2>
+                <p className="text-sm text-slate-500">{showBookDetail.author}</p>
+              </div>
+              <button onClick={() => setShowBookDetail(null)} className="text-slate-400 hover:text-slate-600">X</button>
             </div>
-          ))}
+            <div className="flex gap-4">
+              <img src={showBookDetail.cover || "https://via.placeholder.com/120x180"} alt={showBookDetail.title} className="w-24 h-32 object-cover rounded border" />
+              <div className="flex-1 text-sm text-slate-700 space-y-1">
+                <p>Stok: <span className="font-medium">{showBookDetail.stock}</span></p>
+                <p className="line-clamp-4 text-slate-600 text-xs leading-relaxed">{showBookDetail.description || "Tidak ada deskripsi."}</p>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <button onClick={() => setShowBookDetail(null)} className="px-4 py-2 rounded-lg border text-slate-700 text-sm">Tutup</button>
+              {showBookDetail.stock > 0 && (
+                <button onClick={() => borrowBook(getBookId(showBookDetail))} className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm">Pinjam</button>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
   );
 
+  // ===================================================================
+  // HEADER RIGHT
+  // ===================================================================
+  const renderHeaderRight = () => {
+    if (!isClient) {
+      return (
+        <div className="flex items-center gap-4 text-slate-400 text-sm select-none">
+          <div className="w-5 h-5 rounded-full bg-slate-200" />
+          <div className="flex items-center gap-2">
+            <div className="w-5 h-5 rounded-full bg-slate-200" />
+            <span className="text-slate-400">...</span>
+          </div>
+          <div className="w-5 h-5 rounded-full bg-slate-200" />
+        </div>
+      );
+    }
+
+    if (!token) {
+      return (
+        <button onClick={() => router.push("/login")} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm">
+          Login
+        </button>
+      );
+    }
+
+    return (
+      <div className="flex items-center gap-4 relative">
+        <div className="relative">
+          <button className="relative p-2 text-slate-600 hover:text-slate-800 rounded-lg hover:bg-slate-100" onClick={() => setShowNotifDropdown((s) => !s)}>
+            <Bell className="w-5 h-5" />
+            {unreadCount > 0 && <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full" />}
+          </button>
+          {showNotifDropdown && (
+            <div className="absolute right-0 mt-2 w-72 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-80 overflow-y-auto">
+              <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+                <span className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                  <Bell className="w-4 h-4 text-indigo-600" />
+                  Notifikasi
+                </span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">{notifications.length} pesan</span>
+              </div>
+              {notifications.length === 0 ? (
+                <div className="p-4 text-xs text-slate-500 text-center">Belum ada notifikasi.</div>
+              ) : (
+                <ul className="divide-y divide-slate-100 text-sm">
+                  {notifications.map((n) => (
+                    <li key={n.id_loan} className="p-4 hover:bg-slate-50">
+                      <p className="text-slate-800 font-medium">{n.message}</p>
+                      <p className="text-[10px] text-slate-500 mt-1">{n.book} · {formatDate(n.updated_at)}</p>
+                      <p className="text-[10px] text-indigo-600 font-semibold uppercase">{n.status}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center space-x-2 text-sm text-slate-700">
+          <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
+            <UserIcon className="w-5 h-5 text-indigo-600" />
+          </div>
+          <span className="font-medium max-w-[120px] truncate">{user?.name ?? user?.username ?? "user"}</span>
+        </div>
+        <button onClick={handleLogout} className="p-2 text-slate-600 hover:text-slate-800 rounded-lg hover:bg-slate-100">
+          <LogOut className="w-5 h-5" />
+        </button>
+      </div>
+    );
+  };
+
+  // ===================================================================
+  // RENDER
+  // ===================================================================
+  if (!isClient) {
+    return <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white" />;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white">
-      {/* Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-3">
               <div className="w-8 h-8 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center">
                 <Book className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xl font-bold text-slate-800">
-                Pocket Library
-              </span>
+              <span className="text-xl font-bold text-slate-800">Pocket Library</span>
             </div>
-
-            <div className="flex items-center space-x-4">
-              <button className="p-2 text-slate-600 hover:text-slate-800 relative">
-                <Bell className="w-5 h-5" />
-                <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></span>
-              </button>
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
-                  <User className="w-5 h-5 text-indigo-600" />
-                </div>
-                <span className="text-sm font-medium text-slate-700">
-                  {user?.name || "Loading..."}
-                </span>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="p-2 text-slate-600 hover:text-slate-800"
-              >
-                <LogOut className="w-5 h-5" />
-              </button>
-            </div>
+            {renderHeaderRight()}
           </div>
         </div>
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Navigation Tabs */}
-        <div className="flex space-x-1 mb-8 bg-slate-100 p-1 rounded-xl">
+        <div className="flex flex-wrap gap-1 mb-8 bg-slate-100 p-1 rounded-xl">
           {[
             { id: "books", label: "Katalog Buku", icon: BookOpen },
             { id: "history", label: "Riwayat", icon: Clock },
@@ -499,11 +752,7 @@ const Dashboard = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all ${
-                activeTab === tab.id
-                  ? "bg-white text-indigo-600 shadow-sm"
-                  : "text-slate-600 hover:text-slate-800"
-              }`}
+              className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all ${activeTab === tab.id ? "bg-white text-indigo-600 shadow-sm" : "text-slate-600 hover:text-slate-800"}`}
             >
               <tab.icon className="w-4 h-4" />
               <span>{tab.label}</span>
@@ -511,7 +760,6 @@ const Dashboard = () => {
           ))}
         </div>
 
-        {/* Content */}
         <div className="space-y-8">
           {activeTab === "books" && renderBooks()}
           {activeTab === "favorites" && renderFavorites()}
@@ -520,6 +768,4 @@ const Dashboard = () => {
       </div>
     </div>
   );
-};
-
-export default Dashboard;
+}
