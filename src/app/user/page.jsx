@@ -23,10 +23,8 @@ import { useRouter } from "next/navigation";
 
 const API = "http://localhost:8000/api";
 
-// Konsistensi id buku
 const getBookId = (b) => b?.id_book ?? b?.id;
 
-// Helper fetch aman
 async function apiFetch(url, opts = {}, token) {
   const headers = {
     Accept: "application/json",
@@ -49,7 +47,6 @@ async function apiFetch(url, opts = {}, token) {
 export default function Dashboard() {
   const router = useRouter();
 
-  // State
   const [activeTab, setActiveTab] = useState("books");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
@@ -74,18 +71,15 @@ export default function Dashboard() {
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // SSR-safe state
   const [isClient, setIsClient] = useState(false);
   const [token, setToken] = useState(null);
 
-  // Initialize client-only data
   useEffect(() => {
     setIsClient(true);
     const storedToken = localStorage.getItem("token");
     setToken(storedToken);
   }, []);
 
-  // Fetch Profile
   useEffect(() => {
     if (!token) return;
     (async () => {
@@ -95,7 +89,6 @@ export default function Dashboard() {
     })();
   }, [token]);
 
-  // Fetch Katalog
   useEffect(() => {
     if (!token) return;
     (async () => {
@@ -106,7 +99,6 @@ export default function Dashboard() {
     })();
   }, [token]);
 
-  // Fetch Riwayat
   const fetchBorrowHistory = async () => {
     if (!token) return;
     setLoadingHistory(true);
@@ -118,7 +110,6 @@ export default function Dashboard() {
     if (token) fetchBorrowHistory();
   }, [token]);
 
-  // Fetch Koleksi
   const fetchCollections = async () => {
     if (!token) return;
     const { ok, data } = await apiFetch(`${API}/collections`, {}, token);
@@ -128,7 +119,6 @@ export default function Dashboard() {
     if (token) fetchCollections();
   }, [token]);
 
-  // Fetch Notifikasi (polling)
   const fetchNotifications = async () => {
     if (!token) return;
     const { ok, data } = await apiFetch(`${API}/notifications`, {}, token);
@@ -144,10 +134,6 @@ export default function Dashboard() {
     return () => clearInterval(intv);
   }, [token]);
 
-  // ===================================================================
-  // ACTIONS
-  // ===================================================================
-
   const handleLogout = () => {
     localStorage.removeItem("token");
     setToken(null);
@@ -160,12 +146,10 @@ export default function Dashboard() {
       { method: "POST", body: JSON.stringify({ id_book: bookId }) },
       token
     );
-
     if (!ok) {
       alert(data?.message || "Gagal meminjam buku");
       return;
     }
-
     alert(data?.message || "Pengajuan peminjaman berhasil.");
     setBooks((prev) =>
       prev.map((bk) =>
@@ -253,12 +237,14 @@ export default function Dashboard() {
     setShowReviewModal(null);
     setReviewText("");
     setReviewRating(0);
+
+    setLoadingBooks(true);
+    const { ok: ok2, data: data2 } = await apiFetch(`${API}/books`, {}, token);
+    if (ok2) setBooks(data2?.data || data2 || []);
+    setLoadingBooks(false);
+
     fetchBorrowHistory();
   };
-
-  // ===================================================================
-  // UI HELPERS
-  // ===================================================================
 
   const renderStars = (rating = 0, interactive = false, onRate = null) => {
     const r = Number(rating) || 0;
@@ -329,9 +315,6 @@ export default function Dashboard() {
     return map[status] || map.ditolak;
   };
 
-  // ===================================================================
-  // RENDER: FAVORIT
-  // ===================================================================
   const renderFavorites = () => (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -361,9 +344,6 @@ export default function Dashboard() {
     </div>
   );
 
-  // ===================================================================
-  // RENDER: RIWAYAT
-  // ===================================================================
   const renderHistory = () => {
     const now = new Date();
     const list = borrowHistory
@@ -493,7 +473,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Modal Return */}
         {showReturnModal && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
@@ -518,7 +497,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Modal Ulasan */}
         {showReviewModal && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
@@ -551,9 +529,76 @@ export default function Dashboard() {
     );
   };
 
-  // ===================================================================
-  // RENDER: KATALOG
-  // ===================================================================
+    const renderMyReviews = () => {
+    // DETEKSI ULASAN DARI FIELD review YANG BARU DIKIRIM BACKEND
+    const myReviews = borrowHistory
+      .filter((loan) => loan.status === "dikembalikan" && loan.review)
+      .map((loan) => ({
+        id_review: loan.review.id_review,
+        rating: loan.review.rating,
+        review: loan.review.review || "(Tanpa ulasan tertulis)",
+        book: loan.book,
+        reviewed_at: loan.tanggal_pengembalian || loan.updated_at,
+      }));
+
+    if (myReviews.length === 0) {
+      return (
+        <div className="text-center py-24 bg-white rounded-3xl border-2 border-dashed border-slate-200">
+          <MessageSquare className="w-20 h-20 text-slate-300 mx-auto mb-6" />
+          <p className="text-2xl font-bold text-slate-700 mb-2">Belum ada ulasan</p>
+          <p className="text-slate-500">Ulasan kamu akan muncul setelah mengembalikan buku dan memberi rating</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-8">
+        <h2 className="text-3xl font-bold text-slate-900">
+          Ulasan Saya ({myReviews.length})
+        </h2>
+
+        <div className="grid gap-8">
+          {myReviews.map((rev) => (
+            <div
+              key={rev.id_review}
+              className="bg-white rounded-2xl border shadow-lg p-8 hover:shadow-xl transition-all"
+            >
+              <div className="flex gap-8">
+                <img
+                  src={rev.book.cover || "https://via.placeholder.com/120x170"}
+                  alt={rev.book.title}
+                  className="w-32 h-44 object-cover rounded-xl shadow-md"
+                />
+
+                <div className="flex-1">
+                  <h3 className="text-2xl font-bold text-slate-900 mb-1">
+                    {rev.book.title}
+                  </h3>
+                  <p className="text-slate-600 mb-6">{rev.book.author || "Penulis tidak diketahui"}</p>
+
+                  <div className="flex items-center gap-6 mb-6">
+                    {renderStars(rev.rating)}
+                    <span className="text-sm font-medium text-slate-500">
+                      {new Date(rev.reviewed_at).toLocaleDateString("id-ID", {
+                        day: "numeric",
+                        month: "long",
+                        year: "numeric",
+                      })}
+                    </span>
+                  </div>
+
+                  <p className="text-lg text-slate-700 leading-relaxed italic">
+                    "{rev.review}"
+                  </p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   const renderBooks = () => (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
@@ -648,9 +693,6 @@ export default function Dashboard() {
     </div>
   );
 
-  // ===================================================================
-  // HEADER RIGHT
-  // ===================================================================
   const renderHeaderRight = () => {
     if (!isClient) {
       return (
@@ -718,9 +760,6 @@ export default function Dashboard() {
     );
   };
 
-  // ===================================================================
-  // RENDER
-  // ===================================================================
   if (!isClient) {
     return <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white" />;
   }
@@ -752,7 +791,9 @@ export default function Dashboard() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all ${activeTab === tab.id ? "bg-white text-indigo-600 shadow-sm" : "text-slate-600 hover:text-slate-800"}`}
+              className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all ${
+                activeTab === tab.id ? "bg-white text-indigo-600 shadow-sm" : "text-slate-600 hover:text-slate-800"
+              }`}
             >
               <tab.icon className="w-4 h-4" />
               <span>{tab.label}</span>
@@ -762,8 +803,9 @@ export default function Dashboard() {
 
         <div className="space-y-8">
           {activeTab === "books" && renderBooks()}
-          {activeTab === "favorites" && renderFavorites()}
           {activeTab === "history" && renderHistory()}
+          {activeTab === "favorites" && renderFavorites()}
+          {activeTab === "reviews" && renderMyReviews()}
         </div>
       </div>
     </div>
