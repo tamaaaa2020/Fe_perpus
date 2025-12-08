@@ -175,23 +175,6 @@ const Login = () => {
 
               {info && <p className="text-sm text-green-600">{info}</p>}
 
-              <div className="flex items-center justify-between">
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                  />
-                  <span className="ml-2 text-sm text-slate-600">Ingat saya</span>
-                </label>
-                <button
-                  type="button"
-                  onClick={() => router.push("/forgot")}
-                  className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
-                >
-                  Lupa password?
-                </button>
-              </div>
-
               <button
                 type="submit"
                 disabled={isLoading}

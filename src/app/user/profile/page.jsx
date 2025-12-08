@@ -42,7 +42,7 @@ export default function Profile() {
 
   const [user, setUser] = useState({
     username: "",
-    name: "",
+    nama_lengkap: "",
     email: "",
     role: "",
   });
@@ -67,15 +67,12 @@ export default function Profile() {
     new_password_confirmation: "",
   });
 
-  // ====== INIT CLIENT & TOKEN ======
   useEffect(() => {
     setIsClient(true);
-    const storedToken =
-      typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    const storedToken = typeof window !== "undefined" ? localStorage.getItem("token") : null;
     setToken(storedToken);
   }, []);
 
-  // ====== FETCH USER PROFILE (GET /api/profile) ======
   const fetchProfile = async () => {
     if (!token) return;
     setLoading(true);
@@ -85,32 +82,24 @@ export default function Profile() {
     const { ok, data } = await apiFetch(`${API}/profile`, {}, token);
 
     if (!ok) {
-      // coba ambil error validation kalau ada
-      const fallbackMsg =
-        data?.message ||
-        (data?.errors &&
-          Object.values(data.errors)[0] &&
-          Object.values(data.errors)[0][0]) ||
-        "Gagal mengambil data profil. Silakan coba lagi.";
-      setErrorMsg(fallbackMsg);
+      setErrorMsg("Gagal mengambil data profil.");
       setLoading(false);
       return;
     }
 
     setUser({
       username: data.username || "",
-      // backend kirim nama_lengkap
-      name: data.nama_lengkap || "",
+      nama_lengkap: data.nama_lengkap || "",
       email: data.email || "",
       role: data.role || "",
     });
 
     if (data.stats) {
       setStats({
-        total_denda: data.stats.total_denda ?? 0,
-        total_pinjam: data.stats.total_pinjam ?? 0,
-        total_collection: data.stats.total_collection ?? 0,
-        total_review: data.stats.total_review ?? 0,
+        total_denda: data.stats.total_denda || 0,
+        total_pinjam: data.stats.total_pinjam || 0,
+        total_collection: data.stats.total_collection || 0,
+        total_review: data.stats.total_review || 0,
       });
     }
 
@@ -121,96 +110,59 @@ export default function Profile() {
     if (token) fetchProfile();
   }, [token]);
 
-  // ====== LOGOUT ======
   const handleLogout = () => {
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("token");
-    }
-    setToken(null);
+    localStorage.removeItem("token");
     router.push("/login");
   };
 
-  // ====== UPDATE PROFIL (PUT /api/profile) ======
+  // UPDATE PROFIL (termasuk username)
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
-    if (!token) return;
     setSavingProfile(true);
     setErrorMsg("");
     setSuccessMsg("");
 
-    const { ok, data } = await apiFetch(
-      `${API}/profile`,
-      {
-        method: "PUT",
-        body: JSON.stringify({
-          // backend expect "name" dan "email"
-          name: user.name,
-          email: user.email,
-        }),
-      },
-      token
-    );
+    const { ok, data } = await apiFetch(`${API}/profile`, {
+      method: "PUT",
+      body: JSON.stringify({
+        name: user.nama_lengkap,
+        email: user.email,
+        username: user.username, // ← ditambahin
+      }),
+    }, token);
 
-    if (!ok) {
-      const fallbackMsg =
-        data?.message ||
-        (data?.errors &&
-          Object.values(data.errors)[0] &&
-          Object.values(data.errors)[0][0]) ||
-        "Gagal menyimpan perubahan profil.";
-      setErrorMsg(fallbackMsg);
-    } else {
-      setSuccessMsg(data?.message || "Profil berhasil diperbarui.");
+    if (ok) {
+      setSuccessMsg("Profil berhasil diperbarui!");
       fetchProfile();
+    } else {
+      setErrorMsg(data?.message || "Gagal menyimpan.");
     }
-
     setSavingProfile(false);
   };
 
-  // ====== UPDATE PASSWORD (PUT /api/profile/change-password) ======
   const handleUpdatePassword = async (e) => {
     e.preventDefault();
-    if (!token) return;
-
     setSavingPassword(true);
     setErrorMsg("");
     setSuccessMsg("");
 
-    if (
-      !passwordForm.new_password ||
-      passwordForm.new_password !== passwordForm.new_password_confirmation
-    ) {
-      setErrorMsg("Konfirmasi password baru tidak sama.");
+    if (passwordForm.new_password !== passwordForm.new_password_confirmation) {
+      setErrorMsg("Konfirmasi password tidak cocok.");
       setSavingPassword(false);
       return;
     }
 
-    const { ok, data } = await apiFetch(
-      `${API}/profile/change-password`,
-      {
-        method: "PUT",
-        body: JSON.stringify(passwordForm),
-      },
-      token
-    );
+    const { ok, data } = await apiFetch(`${API}/profile/change-password`, {
+      method: "PUT",
+      body: JSON.stringify(passwordForm),
+    }, token);
 
-    if (!ok) {
-      const fallbackMsg =
-        data?.message ||
-        (data?.errors &&
-          Object.values(data.errors)[0] &&
-          Object.values(data.errors)[0][0]) ||
-        "Gagal mengubah password.";
-      setErrorMsg(fallbackMsg);
+    if (ok) {
+      setSuccessMsg("Password berhasil diubah!");
+      setPasswordForm({ current_password: "", new_password: "", new_password_confirmation: "" });
     } else {
-      setSuccessMsg(data?.message || "Password berhasil diubah.");
-      setPasswordForm({
-        current_password: "",
-        new_password: "",
-        new_password_confirmation: "",
-      });
+      setErrorMsg(data?.errors?.current_password?.[0] || "Gagal mengubah password.");
     }
-
     setSavingPassword(false);
   };
 
@@ -223,9 +175,7 @@ export default function Profile() {
               <div className="w-8 h-8 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center">
                 <Book className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xl font-bold text-slate-800">
-                Pocket Library
-              </span>
+              <span className="text-xl font-bold text-slate-800">Pocket Library</span>
             </div>
           </div>
         </header>
@@ -240,19 +190,8 @@ export default function Profile() {
   }
 
   if (!token) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white flex flex-col items-center justify-center">
-        <p className="mb-4 text-slate-700">
-          Kamu belum login. Silakan login terlebih dahulu.
-        </p>
-        <button
-          onClick={() => router.push("/login")}
-          className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700"
-        >
-          Ke Halaman Login
-        </button>
-      </div>
-    );
+    router.push("/login");
+    return null;
   }
 
   return (
@@ -264,9 +203,7 @@ export default function Profile() {
             <div className="w-8 h-8 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center">
               <Book className="w-5 h-5 text-white" />
             </div>
-            <span className="text-xl font-bold text-slate-800">
-              Pocket Library
-            </span>
+            <span className="text-xl font-bold text-slate-800">Pocket Library</span>
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -281,13 +218,10 @@ export default function Profile() {
                 <UserIcon className="w-5 h-5 text-indigo-600" />
               </div>
               <span className="font-medium max-w-[140px] truncate">
-                {user.name || user.username || "User"}
+                {user.nama_lengkap || user.username || "User"}
               </span>
             </div>
-            <button
-              onClick={handleLogout}
-              className="p-2 text-slate-600 hover:text-slate-800 rounded-lg hover:bg-slate-100"
-            >
+            <button onClick={handleLogout} className="p-2 text-slate-600 hover:text-slate-800 rounded-lg hover:bg-slate-100">
               <Lock className="w-5 h-5" />
             </button>
           </div>
@@ -315,18 +249,10 @@ export default function Profile() {
         </div>
 
         {(successMsg || errorMsg) && (
-          <div
-            className={`rounded-xl px-4 py-3 text-sm flex items-start gap-2 border ${
-              successMsg
-                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                : "bg-red-50 text-red-700 border-red-200"
-            }`}
-          >
-            <span className="mt-0.5">{successMsg ? "✅" : "⚠️"}</span>
+          <div className={`rounded-xl px-4 py-3 text-sm flex items-start gap-2 border ${successMsg ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-red-50 text-red-700 border-red-200"}`}>
+            <span className="mt-0.5">{successMsg ? "Success" : "Warning"}</span>
             <div>
-              <p className="font-medium">
-                {successMsg ? "Berhasil" : "Terjadi Kesalahan"}
-              </p>
+              <p className="font-medium">{successMsg ? "Berhasil" : "Terjadi Kesalahan"}</p>
               <p>{successMsg || errorMsg}</p>
             </div>
           </div>
@@ -341,12 +267,8 @@ export default function Profile() {
                   <UserIcon className="w-7 h-7 text-indigo-600" />
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-slate-400">
-                    Username
-                  </p>
-                  <p className="font-semibold text-slate-900">
-                    {user.username}
-                  </p>
+                  <p className="text-xs uppercase tracking-wide text-slate-400">Username</p>
+                  <p className="font-semibold text-slate-900">{user.username}</p>
                 </div>
               </div>
 
@@ -357,39 +279,27 @@ export default function Profile() {
                 </div>
                 <div className="flex items-center gap-2 text-slate-600">
                   <Shield className="w-4 h-4" />
-                  <span className="capitalize">
-                    {user.role || "member / user"}
-                  </span>
+                  <span className="capitalize">{user.role || "member / user"}</span>
                 </div>
               </div>
 
-              {/* Stats singkat dari backend */}
               <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
                 <div className="bg-slate-50 rounded-lg px-3 py-2">
                   <p className="text-slate-400">Total Pinjam</p>
-                  <p className="font-semibold text-slate-800">
-                    {stats.total_pinjam}
-                  </p>
+                  <p className="font-semibold text-slate-800">{stats.total_pinjam}</p>
                 </div>
                 <div className="bg-slate-50 rounded-lg px-3 py-2">
                   <p className="text-slate-400">Koleksi</p>
-                  <p className="font-semibold text-slate-800">
-                    {stats.total_collection}
-                  </p>
+                  <p className="font-semibold text-slate-800">{stats.total_collection}</p>
                 </div>
                 <div className="bg-slate-50 rounded-lg px-3 py-2">
                   <p className="text-slate-400">Ulasan</p>
-                  <p className="font-semibold text-slate-800">
-                    {stats.total_review}
-                  </p>
+                  <p className="font-semibold text-slate-800">{stats.total_review}</p>
                 </div>
                 <div className="bg-slate-50 rounded-lg px-3 py-2">
                   <p className="text-slate-400">Total Denda</p>
                   <p className="font-semibold text-slate-800">
-                    Rp{" "}
-                    {new Intl.NumberFormat("id-ID").format(
-                      stats.total_denda || 0
-                    )}
+                    Rp {new Intl.NumberFormat("id-ID").format(stats.total_denda || 0)}
                   </p>
                 </div>
               </div>
@@ -407,41 +317,49 @@ export default function Profile() {
 
           {/* FORM PROFIL + PASSWORD */}
           <div className="md:col-span-2 space-y-6">
-            {/* FORM PROFIL */}
-            <form
-              onSubmit={handleUpdateProfile}
-              className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 space-y-4"
-            >
+            {/* FORM PROFIL — TAMBAHIN USERNAME DI SINI */}
+            <form onSubmit={handleUpdateProfile} className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 space-y-4">
               <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
                 <UserIcon className="w-5 h-5 text-indigo-600" />
                 Informasi Profil
               </h2>
 
               <div className="grid md:grid-cols-2 gap-4">
+                {/* BARIS PERTAMA: USERNAME + NAMA LENGKAP */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Username
+                  </label>
+                  <input
+                    type="text"
+                    value={user.username}
+                    onChange={(e) => setUser(prev => ({ ...prev, username: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    placeholder="Username kamu"
+                  />
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
                     Nama Lengkap
                   </label>
                   <input
                     type="text"
-                    value={user.name}
-                    onChange={(e) =>
-                      setUser((prev) => ({ ...prev, name: e.target.value }))
-                    }
+                    value={user.nama_lengkap}
+                    onChange={(e) => setUser(prev => ({ ...prev, nama_lengkap: e.target.value }))}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     placeholder="Masukkan nama lengkap"
                   />
                 </div>
-                <div>
+
+                {/* BARIS KEDUA: EMAIL */}
+                <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-slate-700 mb-1">
                     Email
                   </label>
                   <input
                     type="email"
                     value={user.email}
-                    onChange={(e) =>
-                      setUser((prev) => ({ ...prev, email: e.target.value }))
-                    }
+                    onChange={(e) => setUser(prev => ({ ...prev, email: e.target.value }))}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     placeholder="Masukkan email aktif"
                   />
@@ -469,11 +387,8 @@ export default function Profile() {
               </div>
             </form>
 
-            {/* FORM PASSWORD */}
-            <form
-              onSubmit={handleUpdatePassword}
-              className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 space-y-4"
-            >
+            {/* FORM PASSWORD — TETAP SAMA */}
+            <form onSubmit={handleUpdatePassword} className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 space-y-4">
               <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
                 <Lock className="w-5 h-5 text-indigo-600" />
                 Ganti Password
@@ -487,12 +402,7 @@ export default function Profile() {
                   <input
                     type="password"
                     value={passwordForm.current_password}
-                    onChange={(e) =>
-                      setPasswordForm((prev) => ({
-                        ...prev,
-                        current_password: e.target.value,
-                      }))
-                    }
+                    onChange={(e) => setPasswordForm(prev => ({ ...prev, current_password: e.target.value }))}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     placeholder="••••••••"
                   />
@@ -504,12 +414,7 @@ export default function Profile() {
                   <input
                     type="password"
                     value={passwordForm.new_password}
-                    onChange={(e) =>
-                      setPasswordForm((prev) => ({
-                        ...prev,
-                        new_password: e.target.value,
-                      }))
-                    }
+                    onChange={(e) => setPasswordForm(prev => ({ ...prev, new_password: e.target.value }))}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     placeholder="Minimal 8 karakter"
                   />
@@ -521,12 +426,7 @@ export default function Profile() {
                   <input
                     type="password"
                     value={passwordForm.new_password_confirmation}
-                    onChange={(e) =>
-                      setPasswordForm((prev) => ({
-                        ...prev,
-                        new_password_confirmation: e.target.value,
-                      }))
-                    }
+                    onChange={(e) => setPasswordForm(prev => ({ ...prev, new_password_confirmation: e.target.value }))}
                     className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     placeholder="Ulangi password baru"
                   />

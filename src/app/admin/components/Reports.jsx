@@ -34,29 +34,36 @@ function ReportButton({ onClick, icon: Icon, label, color }) {
 
 export default function Reports({ role = "admin" }) {
   /* =========================
-     Generate Report Function
+     Generate Report Function — FIXED 100%!
      ========================= */
   const generateReport = useCallback(async (type) => {
     try {
+      // AMBIL TOKEN DARI LOCALSTORAGE — INI YANG SEBELUMNYA KURANG!
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+      if (!token) {
+        alert("Token tidak ditemukan! Silakan login ulang.");
+        return;
+      }
+
       let url = "";
 
-      // ===== Peminjaman
+      const prefix = role === "admin" ? "/admin" : "/petugas";
+
+      // Peminjaman
       if (type.startsWith("peminjaman")) {
         const scope = type.split("-")[1] ?? "bulanan";
-        url = joinApi(`/reports/loans?type=${scope}`);
+        url = `http://localhost:8000/api${prefix}/reports/loans?type=${scope}`;
       }
-      // ===== Denda
+      // Denda
       else if (type.startsWith("denda")) {
         const scope = type.split("-")[1] ?? "bulanan";
-        url = joinApi(`/reports/fines?type=${scope}`);
+        url = `http://localhost:8000/api${prefix}/reports/fines?type=${scope}`;
       }
-      // ===== Buku (admin only)
-      else if (type === "inventori-buku") {
-        url = joinApi(`/reports/books`);
-      } else if (type === "popularitas-buku") {
-        url = joinApi(`/reports/books/popular`);
-      } else if (type === "kategori-statistik") {
-        url = joinApi(`/reports/books/category-stats`);
+      // Buku (admin only)
+      else if (role === "admin") {
+        if (type === "inventori-buku") url = "http://localhost:8000/api/admin/reports/books";
+        if (type === "popularitas-buku") url = "http://localhost:8000/api/admin/reports/books/popular";
+        if (type === "kategori-statistik") url = "http://localhost:8000/api/admin/reports/books/category-stats";
       }
 
       if (!url) {
@@ -66,7 +73,10 @@ export default function Reports({ role = "admin" }) {
 
       const res = await fetch(url, {
         method: "GET",
-        headers: { Accept: "application/pdf" },
+        headers: {
+          Authorization: `Bearer ${token}`,   // TOKEN SUDAH ADA!
+          Accept: "application/pdf",
+        },
       });
 
       if (!res.ok) {
@@ -79,20 +89,16 @@ export default function Reports({ role = "admin" }) {
       const fileURL = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = fileURL;
-
-      const cleanType = type.replace("-", "_");
-      link.download = `laporan_${cleanType}_${new Date()
-        .toISOString()
-        .slice(0, 10)}.pdf`;
-
+      link.download = `laporan_${type.replace("-", "_")}_${new Date().toISOString().slice(0, 10)}.pdf`;
       document.body.appendChild(link);
       link.click();
-      link.remove();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(fileURL);
     } catch (err) {
       console.error("Generate report error:", err);
       alert(`Gagal mengunduh laporan: ${err.message}`);
     }
-  }, []);
+  }, [role]); // role masuk dependency
 
   /* =========================
      Render
@@ -109,23 +115,20 @@ export default function Reports({ role = "admin" }) {
             Generate Laporan
           </h1>
           <p className="text-slate-600 text-lg max-w-2xl mx-auto">
-            Buat dan unduh laporan komprehensif untuk analisis data perpustakaan
-            yang mendalam
+            Buat dan unduh laporan komprehensif untuk analisis data perpustakaan yang mendalam
           </p>
         </div>
 
         {/* Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
-          {/* ===== Peminjaman */}
+          {/* Peminjaman */}
           <div className="bg-white/70 backdrop-blur-sm rounded-3xl shadow-xl border border-white/50 p-8 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
             <div className="flex items-center space-x-4 mb-6">
               <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
                 <FileText className="w-8 h-8 text-white" />
               </div>
               <div>
-                <h3 className="text-xl font-bold text-slate-800">
-                  Laporan Peminjaman
-                </h3>
+                <h3 className="text-xl font-bold text-slate-800">Laporan Peminjaman</h3>
                 <p className="text-slate-600">Data peminjaman & pengembalian</p>
               </div>
             </div>
@@ -148,7 +151,7 @@ export default function Reports({ role = "admin" }) {
             </div>
           </div>
 
-          {/* ===== Buku (admin only) */}
+          {/* Buku (admin only) */}
           {role === "admin" && (
             <div className="bg-white/70 backdrop-blur-sm rounded-3xl shadow-xl border border-white/50 p-8 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
               <div className="flex items-center space-x-4 mb-6">
@@ -156,9 +159,7 @@ export default function Reports({ role = "admin" }) {
                   <BookOpen className="w-8 h-8 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-slate-800">
-                    Laporan Buku
-                  </h3>
+                  <h3 className="text-xl font-bold text-slate-800">Laporan Buku</h3>
                   <p className="text-slate-600">Statistik & data buku</p>
                 </div>
               </div>
@@ -175,7 +176,6 @@ export default function Reports({ role = "admin" }) {
                     border: "border border-emerald-200",
                   }}
                 />
-
                 <ReportButton
                   onClick={() => generateReport("popularitas-buku")}
                   icon={TrendingUp}
@@ -187,7 +187,6 @@ export default function Reports({ role = "admin" }) {
                     border: "border border-emerald-200",
                   }}
                 />
-
                 <ReportButton
                   onClick={() => generateReport("kategori-statistik")}
                   icon={BarChart3}
@@ -203,16 +202,14 @@ export default function Reports({ role = "admin" }) {
             </div>
           )}
 
-          {/* ===== Denda */}
+          {/* Denda */}
           <div className="bg-white/70 backdrop-blur-sm rounded-3xl shadow-xl border border-white/50 p-8 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
             <div className="flex items-center space-x-4 mb-6">
               <div className="w-16 h-16 bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl flex items-center justify-center shadow-lg">
                 <AlertTriangle className="w-8 h-8 text-white" />
               </div>
               <div>
-                <h3 className="text-xl font-bold text-slate-800">
-                  Laporan Denda
-                </h3>
+                <h3 className="text-xl font-bold text-slate-800">Laporan Denda</h3>
                 <p className="text-slate-600">Data denda keterlambatan</p>
               </div>
             </div>
