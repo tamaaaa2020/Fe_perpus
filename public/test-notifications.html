@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Check Notifications</title>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        pre { background: #f0f0f0; padding: 10px; overflow-x: auto; }
+        button { padding: 10px 20px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+<h1>Notification Check</h1>
+<button onclick="checkStorage()">Check LocalStorage</button>
+<button onclick="checkNotifications()">Check API</button>
+<button onclick="checkAllNotifications()">Check All Notifications (DB)</button>
+<pre id="result"></pre>
+
+<script>
+function log(msg) {
+    document.getElementById('result').innerText += msg + '\n';
+}
+
+function checkStorage() {
+    document.getElementById('result').innerText = '';
+    const token = localStorage.getItem('token');
+    const user = localStorage.getItem('user');
+    
+    log('=== LocalStorage ===');
+    log('Token: ' + (token ? token.substring(0, 50) + '...' : 'NOT FOUND'));
+    log('User: ' + user);
+    
+    if (!token) {
+        log('\n⚠️ No token! You need to login first at /admin or /user');
+    }
+}
+
+function checkNotifications() {
+    document.getElementById('result').innerText = '';
+    const token = localStorage.getItem('token');
+    
+    if (!token) {
+        log('❌ No token found in localStorage');
+        log('Login first at: http://localhost:3000/login');
+        return;
+    }
+    
+    log('=== Checking API Notifications ===');
+    log('Token found: ' + token.substring(0, 30) + '...');
+    log('Fetching from: http://localhost:8000/api/notifications\n');
+    
+    fetch('http://localhost:8000/api/notifications', {
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json'
+        }
+    })
+    .then(r => {
+        log(`Status: ${r.status} ${r.statusText}`);
+        return r.json();
+    })
+    .then(data => {
+        log('\n=== Response Data ===');
+        log(JSON.stringify(data, null, 2));
+        
+        if (Array.isArray(data)) {
+            log(`\n✅ Found ${data.length} notifications`);
+        }
+    })
+    .catch(e => {
+        log('❌ Error: ' + e.message);
+    });
+}
+
+function checkAllNotifications() {
+    document.getElementById('result').innerText = '';
+    const token = localStorage.getItem('token');
+    
+    if (!token) {
+        log('❌ No token found');
+        return;
+    }
+    
+    log('=== Checking ALL Notifications (Admin View) ===');
+    
+    // Try to fetch as admin
+    fetch('http://localhost:8000/api/notifications', {
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json'
+        }
+    })
+    .then(r => r.json())
+    .then(data => {
+        log('Your Notifications:');
+        log(JSON.stringify(data, null, 2));
+    })
+    .catch(e => {
+        log('Error: ' + e.message);
+    });
+}
+
+// Auto-check storage on load
+checkStorage();
+</script>
+</body>
+</html>

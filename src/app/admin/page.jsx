@@ -152,13 +152,14 @@ const AdminPetugasDashboard = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white">
-      <Header role={role} router={router} />
+      <Header role={role} router={router} token={token} />
       <div className="max-w-7xl mx-auto px-4 py-8">
         <Tabs
           tabs={getAvailableTabs}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
         />
+        
 
         <div className="space-y-8">
           {/* === DASHBOARD / OVERVIEW === */}
@@ -352,11 +353,13 @@ const AdminPetugasDashboard = () => {
               users={users}
               setShowModal={setShowModal}
               setSelectedItem={setSelectedItem}
+              onRefresh={fetchData}
             />
           )}
           {activeTab === "reported-reviews" && role === "admin" && (
             <ReportedReviews
               reviews={reportedReviews}
+              setReviews={setReportedReviews}
               setShowModal={setShowModal}
               setSelectedItem={setSelectedItem}
             />

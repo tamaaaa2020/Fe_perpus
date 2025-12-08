@@ -18,8 +18,10 @@ import {
   CalendarClock,
   AlertTriangle,
   XCircle,
+  Trash2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import ShowBookModal from "./components/modals/ShowBookModal";
 
 const API = "http://localhost:8000/api";
 
@@ -123,14 +125,17 @@ export default function Dashboard() {
     if (!token) return;
     const { ok, data } = await apiFetch(`${API}/notifications`, {}, token);
     if (ok) {
-      setNotifications(Array.isArray(data) ? data : []);
-      setUnreadCount((Array.isArray(data) ? data : []).length);
+      const allNotifications = Array.isArray(data) ? data : [];
+      setNotifications(allNotifications);
+      // Hitung notifikasi yang belum dibaca (is_read = false atau is_read = 0)
+      const unread = allNotifications.filter(n => !n.is_read).length;
+      setUnreadCount(unread);
     }
   };
   useEffect(() => {
     if (!token) return;
     fetchNotifications();
-    const intv = setInterval(fetchNotifications, 10000);
+    const intv = setInterval(fetchNotifications, 5000); // Polling setiap 5 detik
     return () => clearInterval(intv);
   }, [token]);
 
@@ -138,6 +143,20 @@ export default function Dashboard() {
     localStorage.removeItem("token");
     setToken(null);
     router.push("/login");
+  };
+
+  const markNotificationAsRead = async (notificationId) => {
+    if (!token) return;
+    try {
+      await apiFetch(`${API}/notifications/${notificationId}/read`, { method: "PUT" }, token);
+      // Update local state
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notificationId ? { ...n, is_read: true } : n))
+      );
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+    } catch (err) {
+      console.error("Gagal mark notification sebagai read:", err);
+    }
   };
 
   const borrowBook = async (bookId) => {
@@ -238,12 +257,14 @@ export default function Dashboard() {
     setReviewText("");
     setReviewRating(0);
 
+    // REFRESH DAFTAR BUKU (biar rating langsung update)
     setLoadingBooks(true);
     const { ok: ok2, data: data2 } = await apiFetch(`${API}/books`, {}, token);
     if (ok2) setBooks(data2?.data || data2 || []);
     setLoadingBooks(false);
 
-    fetchBorrowHistory();
+    // INI YANG PENTING: TUNGGU DULU, BARU REFRESH RIWAYAT
+    await fetchBorrowHistory(); // ← Tambahkan await!
   };
 
   const renderStars = (rating = 0, interactive = false, onRate = null) => {
@@ -403,6 +424,15 @@ export default function Dashboard() {
               return (
                 <div key={loan.id_loan} className="relative bg-white rounded-xl shadow-sm border overflow-hidden">
                   <div className={`absolute inset-y-0 left-0 w-1 bg-gradient-to-b ${statusBorder(loan.status)}`} />
+
+                  {loan.denda > 0 && (
+                    <div className="absolute -top-3 -right-3 z-20">
+                      <div className="bg-gradient-to-r from-red-600 to-rose-600 text-white px-6 py-3 rounded-2xl font-black text-lg shadow-2xl animate-pulse border-4 border-white">
+                        Rp {new Intl.NumberFormat('id-ID').format(loan.denda)}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="p-4 md:p-5 pl-5 md:pl-6 grid grid-cols-[auto,1fr,auto] gap-4">
                     <img src={loan.book.cover || "https://via.placeholder.com/80x120"} alt={loan.book.title} className="w-16 h-20 md:w-20 md:h-24 object-cover rounded-md border" />
                     <div className="min-w-0">
@@ -528,9 +558,7 @@ export default function Dashboard() {
       </div>
     );
   };
-
-    const renderMyReviews = () => {
-    // DETEKSI ULASAN DARI FIELD review YANG BARU DIKIRIM BACKEND
+  const renderMyReviews = () => {
     const myReviews = borrowHistory
       .filter((loan) => loan.status === "dikembalikan" && loan.review)
       .map((loan) => ({
@@ -540,6 +568,31 @@ export default function Dashboard() {
         book: loan.book,
         reviewed_at: loan.tanggal_pengembalian || loan.updated_at,
       }));
+
+    // Fungsi hapus ulasan
+    const deleteReview = async (reviewId) => {
+      if (!confirm("Yakin ingin menghapus ulasan ini?")) return;
+
+      const { ok, data } = await apiFetch(
+        `${API}/reviews/${reviewId}`,
+        { method: "DELETE" },
+        token
+      );
+
+      if (!ok) {
+        alert(data?.message || "Gagal menghapus ulasan");
+        return;
+      }
+
+      alert("Ulasan berhasil dihapus!");
+
+      // Refresh riwayat + daftar buku biar rating langsung update
+      await fetchBorrowHistory();
+      setLoadingBooks(true);
+      const { ok: ok2, data: data2 } = await apiFetch(`${API}/books`, {}, token);
+      if (ok2) setBooks(data2?.data || data2 || []);
+      setLoadingBooks(false);
+    };
 
     if (myReviews.length === 0) {
       return (
@@ -561,7 +614,7 @@ export default function Dashboard() {
           {myReviews.map((rev) => (
             <div
               key={rev.id_review}
-              className="bg-white rounded-2xl border shadow-lg p-8 hover:shadow-xl transition-all"
+              className="bg-white rounded-2xl border shadow-lg p-8 hover:shadow-xl transition-all relative"
             >
               <div className="flex gap-8">
                 <img
@@ -592,6 +645,15 @@ export default function Dashboard() {
                   </p>
                 </div>
               </div>
+
+              {/* TOMBOL HAPUS DI KANAN ATAS */}
+              <button
+                onClick={() => deleteReview(rev.id_review)}
+                className="absolute top-6 right-6 p-2 rounded-lg bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
+                title="Hapus ulasan"
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
             </div>
           ))}
         </div>
@@ -644,10 +706,10 @@ export default function Dashboard() {
                   </div>
                   <div className="flex items-center justify-between">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${book.stock > 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}>
-                      {book.stock > 0 ? "Tersedia" : "Dipinjam"}
+                      {book.stock > 0 ? `Tersedia (${book.stock})` : "Habis"}
                     </span>
                     <div className="flex space-x-2">
-                      <button onClick={() => setShowBookDetail(book)} className="p-2 text-slate-600 hover:text-indigo-600 transition-colors">
+                      <button onClick={() => setShowBookDetail(getBookId(book))} className="p-2 text-slate-600 hover:text-indigo-600 transition-colors">
                         <Eye className="w-4 h-4" />
                       </button>
                       {book.stock > 0 && (
@@ -664,32 +726,14 @@ export default function Dashboard() {
         </div>
       )}
 
+
       {showBookDetail && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h2 className="text-lg font-bold text-slate-800">{showBookDetail.title}</h2>
-                <p className="text-sm text-slate-500">{showBookDetail.author}</p>
-              </div>
-              <button onClick={() => setShowBookDetail(null)} className="text-slate-400 hover:text-slate-600">X</button>
-            </div>
-            <div className="flex gap-4">
-              <img src={showBookDetail.cover || "https://via.placeholder.com/120x180"} alt={showBookDetail.title} className="w-24 h-32 object-cover rounded border" />
-              <div className="flex-1 text-sm text-slate-700 space-y-1">
-                <p>Stok: <span className="font-medium">{showBookDetail.stock}</span></p>
-                <p className="line-clamp-4 text-slate-600 text-xs leading-relaxed">{showBookDetail.description || "Tidak ada deskripsi."}</p>
-              </div>
-            </div>
-            <div className="mt-6 flex justify-end gap-2">
-              <button onClick={() => setShowBookDetail(null)} className="px-4 py-2 rounded-lg border text-slate-700 text-sm">Tutup</button>
-              {showBookDetail.stock > 0 && (
-                <button onClick={() => borrowBook(getBookId(showBookDetail))} className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm">Pinjam</button>
-              )}
-            </div>
-          </div>
-        </div>
+        <ShowBookModal
+          bookId={showBookDetail}
+          setShowModal={setShowBookDetail}
+        />
       )}
+
     </div>
   );
 
@@ -720,26 +764,60 @@ export default function Dashboard() {
         <div className="relative">
           <button className="relative p-2 text-slate-600 hover:text-slate-800 rounded-lg hover:bg-slate-100" onClick={() => setShowNotifDropdown((s) => !s)}>
             <Bell className="w-5 h-5" />
-            {unreadCount > 0 && <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full" />}
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
           </button>
           {showNotifDropdown && (
-            <div className="absolute right-0 mt-2 w-72 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-80 overflow-y-auto">
-              <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+            <div className="absolute right-0 mt-2 w-80 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-96 overflow-hidden flex flex-col">
+              <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-indigo-50 to-purple-50">
                 <span className="text-sm font-semibold text-slate-800 flex items-center gap-2">
                   <Bell className="w-4 h-4 text-indigo-600" />
                   Notifikasi
                 </span>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium">{notifications.length} pesan</span>
+                <span className="text-xs px-2.5 py-1 rounded-full bg-white text-slate-700 font-semibold border border-slate-200">
+                  {notifications.length} pesan
+                </span>
               </div>
               {notifications.length === 0 ? (
-                <div className="p-4 text-xs text-slate-500 text-center">Belum ada notifikasi.</div>
+                <div className="p-8 text-center text-slate-500">
+                  <Bell className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-sm">Belum ada notifikasi.</p>
+                </div>
               ) : (
-                <ul className="divide-y divide-slate-100 text-sm">
+                <ul className="divide-y divide-slate-100 overflow-y-auto flex-1">
                   {notifications.map((n) => (
-                    <li key={n.id_loan} className="p-4 hover:bg-slate-50">
-                      <p className="text-slate-800 font-medium">{n.message}</p>
-                      <p className="text-[10px] text-slate-500 mt-1">{n.book} · {formatDate(n.updated_at)}</p>
-                      <p className="text-[10px] text-indigo-600 font-semibold uppercase">{n.status}</p>
+                    <li
+                      key={n.id}
+                      className={`p-4 hover:bg-slate-50 cursor-pointer transition-colors border-l-4 ${n.is_read ? "bg-white border-l-transparent" : "bg-blue-50 border-l-blue-500"
+                        }`}
+                      onClick={() => !n.is_read && markNotificationAsRead(n.id)}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <p className={`text-sm ${n.is_read ? "text-slate-700" : "font-semibold text-slate-900"}`}>
+                            {n.message}
+                          </p>
+                          <p className="text-xs text-slate-500 mt-1.5">
+                            {n.book} · {formatDate(n.updated_at)}
+                          </p>
+                          <p className="text-xs font-semibold uppercase mt-2">
+                            <span className={`px-2 py-1 rounded-full ${n.status === "pending" ? "bg-amber-100 text-amber-700" :
+                              n.status === "siap_diambil" ? "bg-cyan-100 text-cyan-700" :
+                                n.status === "dipinjam" ? "bg-indigo-100 text-indigo-700" :
+                                  n.status === "dikembalikan" ? "bg-emerald-100 text-emerald-700" :
+                                    "bg-slate-100 text-slate-700"
+                              }`}>
+                              {n.status}
+                            </span>
+                          </p>
+                        </div>
+                        {!n.is_read && (
+                          <div className="w-2 h-2 bg-blue-500 rounded-full mt-1.5 flex-shrink-0" />
+                        )}
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -791,9 +869,8 @@ export default function Dashboard() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all ${
-                activeTab === tab.id ? "bg-white text-indigo-600 shadow-sm" : "text-slate-600 hover:text-slate-800"
-              }`}
+              className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all ${activeTab === tab.id ? "bg-white text-indigo-600 shadow-sm" : "text-slate-600 hover:text-slate-800"
+                }`}
             >
               <tab.icon className="w-4 h-4" />
               <span>{tab.label}</span>
