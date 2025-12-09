@@ -1,10 +1,12 @@
 "use client";
+
 import React, { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 import { X, Archive, FileText, Sparkles, Tag, Info } from "lucide-react";
 
 const CategoryModal = ({ selectedItem, setShowModal, setCategories }) => {
-  const token = localStorage.getItem("token");
+  const token =
+    typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
   const [form, setForm] = useState({ category_name: "", description: "" });
   const [isLoading, setIsLoading] = useState(false);
@@ -15,15 +17,27 @@ const CategoryModal = ({ selectedItem, setShowModal, setCategories }) => {
         category_name: selectedItem.category_name || selectedItem.name || "",
         description: selectedItem.description || "",
       });
+    } else {
+      setForm({ category_name: "", description: "" });
     }
   }, [selectedItem]);
 
   const handleSubmit = async () => {
+    if (!token) {
+      alert("Token tidak ditemukan, silakan login ulang.");
+      return;
+    }
+
+    if (!form.category_name.trim()) {
+      alert("Nama kategori wajib diisi.");
+      return;
+    }
+
     setIsLoading(true);
     try {
       const url = selectedItem
-        ? `/admin/categories/${selectedItem.id}`
-        : `/admin/categories`;
+        ? `/admin/categories/${selectedItem.id}` // PUT /api/admin/categories/{id}
+        : `/admin/categories`; // POST /api/admin/categories
 
       await api(url, {
         method: selectedItem ? "PUT" : "POST",
@@ -31,12 +45,23 @@ const CategoryModal = ({ selectedItem, setShowModal, setCategories }) => {
         body: form,
       });
 
-      const refreshed = await api("/admin/categories", { token });
-      setCategories(refreshed);
+      // kalau mau tetap update state, tidak masalah
+      try {
+        const refreshed = await api("/admin/categories", { token });
+        setCategories(refreshed);
+      } catch (e) {
+        console.warn("Gagal refresh via state, tapi akan reload page:", e);
+      }
+
       setShowModal(null);
+
+      // ✅ cara kasar tapi pasti: reload seluruh halaman admin
+      if (typeof window !== "undefined") {
+        window.location.reload();
+      }
     } catch (error) {
-      console.error("Error:", error);
-      alert("❌ Terjadi kesalahan");
+      console.error("Error simpan kategori:", error);
+      alert("Gagal menyimpan kategori. Coba lagi.");
     } finally {
       setIsLoading(false);
     }
@@ -45,9 +70,9 @@ const CategoryModal = ({ selectedItem, setShowModal, setCategories }) => {
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn">
       <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full overflow-hidden transform animate-scaleIn border border-gray-100">
-        {/* Header dengan Gradient */}
+        {/* Header */}
         <div className="relative bg-gradient-to-r from-purple-600 via-purple-600 to-purple-600 px-8 py-6">
-          <div className="absolute inset-0 bg-black/10"></div>
+          <div className="absolute inset-0 bg-black/10" />
           <div className="relative flex justify-between items-center">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
@@ -58,7 +83,9 @@ const CategoryModal = ({ selectedItem, setShowModal, setCategories }) => {
                   {selectedItem ? "Edit Kategori" : "Tambah Kategori Baru"}
                 </h2>
                 <p className="text-purple-100 text-sm">
-                  {selectedItem ? "Perbarui informasi kategori" : "Buat kategori baru untuk mengorganisir buku"}
+                  {selectedItem
+                    ? "Perbarui informasi kategori"
+                    : "Buat kategori baru untuk mengorganisir buku"}
                 </p>
               </div>
             </div>
@@ -85,10 +112,12 @@ const CategoryModal = ({ selectedItem, setShowModal, setCategories }) => {
                   type="text"
                   placeholder="Masukkan nama kategori (misal: Programming, Database, Design)"
                   value={form.category_name}
-                  onChange={(e) => setForm({ ...form, category_name: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, category_name: e.target.value })
+                  }
                   className="w-full border-2 border-gray-200 rounded-xl px-4 py-4 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all duration-200 bg-gray-50 hover:bg-white group-hover:border-gray-300 text-lg"
                 />
-                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-purple-500/10 to-teal-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none"></div>
+                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-purple-500/10 to-teal-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none" />
               </div>
             </div>
 
@@ -100,13 +129,17 @@ const CategoryModal = ({ selectedItem, setShowModal, setCategories }) => {
               </label>
               <div className="relative">
                 <textarea
-                  placeholder="Tuliskan deskripsi lengkap tentang kategori ini...&#10;&#10;Contoh: Kategori Programming berisi buku-buku tentang pemrograman, coding, dan pengembangan software."
+                  placeholder={
+                    "Tuliskan deskripsi lengkap tentang kategori ini...\n\nContoh: Kategori Programming berisi buku-buku tentang pemrograman, coding, dan pengembangan software."
+                  }
                   value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  onChange={(e) =>
+                    setForm({ ...form, description: e.target.value })
+                  }
                   rows={5}
                   className="w-full border-2 border-gray-200 rounded-xl px-4 py-4 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all duration-200 bg-gray-50 hover:bg-white group-hover:border-gray-300 resize-none"
                 />
-                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-purple-500/10 to-teal-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none"></div>
+                <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-purple-500/10 to-teal-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none" />
               </div>
             </div>
 
@@ -115,11 +148,19 @@ const CategoryModal = ({ selectedItem, setShowModal, setCategories }) => {
               <div className="flex items-start gap-3">
                 <Info className="w-5 h-5 text-purple-600 mt-0.5 flex-shrink-0" />
                 <div>
-                  <h4 className="font-semibold text-purple-800 mb-1">Tips Membuat Kategori</h4>
+                  <h4 className="font-semibold text-purple-800 mb-1">
+                    Tips Membuat Kategori
+                  </h4>
                   <ul className="text-sm text-purple-700 space-y-1">
                     <li>• Gunakan nama yang jelas dan mudah dimengerti</li>
-                    <li>• Buat deskripsi yang menjelaskan jenis buku dalam kategori</li>
-                    <li>• Hindari nama kategori yang terlalu umum atau terlalu spesifik</li>
+                    <li>
+                      • Buat deskripsi yang menjelaskan jenis buku dalam
+                      kategori
+                    </li>
+                    <li>
+                      • Hindari nama kategori yang terlalu umum atau terlalu
+                      spesifik
+                    </li>
                   </ul>
                 </div>
               </div>
@@ -130,8 +171,8 @@ const CategoryModal = ({ selectedItem, setShowModal, setCategories }) => {
         {/* Footer */}
         <div className="flex justify-between items-center border-t border-gray-200 px-8 py-6 bg-gray-50/50">
           <div className="flex items-center gap-2 text-sm text-gray-600">
-            <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
-            {form.category_name ? 'Ready to save' : 'Fill in category name'}
+            <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
+            {form.category_name ? "Ready to save" : "Fill in category name"}
           </div>
           <div className="flex gap-3">
             <button
@@ -147,7 +188,7 @@ const CategoryModal = ({ selectedItem, setShowModal, setCategories }) => {
             >
               {isLoading ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   Menyimpan...
                 </>
               ) : (
@@ -163,25 +204,29 @@ const CategoryModal = ({ selectedItem, setShowModal, setCategories }) => {
 
       <style jsx>{`
         @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
         }
-        
+
         @keyframes scaleIn {
-          from { 
-            opacity: 0; 
-            transform: scale(0.95) translateY(20px); 
+          from {
+            opacity: 0;
+            transform: scale(0.95) translateY(20px);
           }
-          to { 
-            opacity: 1; 
-            transform: scale(1) translateY(0); 
+          to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
           }
         }
-        
+
         .animate-fadeIn {
           animation: fadeIn 0.2s ease-out;
         }
-        
+
         .animate-scaleIn {
           animation: scaleIn 0.3s ease-out;
         }

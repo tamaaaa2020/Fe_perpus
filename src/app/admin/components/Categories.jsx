@@ -1,5 +1,8 @@
 "use client";
+
+import React from "react";
 import { Plus, Edit, Trash2 } from "lucide-react";
+import { api } from "@/lib/api";
 
 export default function Categories({
   categories,
@@ -7,6 +10,39 @@ export default function Categories({
   setShowModal,
   setSelectedItem,
 }) {
+  const handleDelete = async (cat) => {
+    const token =
+      typeof window !== "undefined" ? localStorage.getItem("token") : null;
+
+    if (!token) {
+      alert("Token tidak ditemukan, silakan login ulang.");
+      return;
+    }
+
+    const ok = confirm(
+      `Yakin ingin menghapus kategori "${cat.category_name}"?`
+    );
+    if (!ok) return;
+
+    try {
+      await api(`/admin/categories/${cat.id}`, {
+        method: "DELETE",
+        token,
+      });
+
+      // update state (opsional)
+      setCategories((prev) => prev.filter((c) => c.id !== cat.id));
+
+      // dan reload full page biar 100% sinkron dengan DB
+      if (typeof window !== "undefined") {
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error("Error deleting category:", error);
+      alert("Gagal menghapus kategori. Coba lagi.");
+    }
+  };
+
   return (
     <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
       {/* Header */}
@@ -34,8 +70,7 @@ export default function Categories({
           </thead>
           <tbody className="divide-y divide-slate-200">
             {categories.map((cat) => (
-              <tr key={cat.id_category} className="hover:bg-slate-50">
-                {/* Gunakan category_name sesuai field di DB */}
+              <tr key={cat.id} className="hover:bg-slate-50">
                 <td className="px-6 py-4 text-sm">{cat.category_name}</td>
                 <td className="px-6 py-4 flex items-center gap-3">
                   {/* Edit */}
@@ -51,15 +86,7 @@ export default function Categories({
 
                   {/* Delete */}
                   <button
-                    onClick={() => {
-                      if (confirm("Yakin hapus kategori ini?")) {
-                        setCategories((prev) =>
-                          prev.filter(
-                            (c) => c.id_category !== cat.id_category
-                          )
-                        );
-                      }
-                    }}
+                    onClick={() => handleDelete(cat)}
                     className="text-red-600 hover:text-red-800"
                   >
                     <Trash2 className="w-4 h-4" />
