@@ -127,17 +127,31 @@ export default function Dashboard() {
     if (ok) {
       const allNotifications = Array.isArray(data) ? data : [];
       setNotifications(allNotifications);
-      const unread = allNotifications.filter((n) => !n.is_read).length;
-      setUnreadCount(unread);
     }
   };
+
+  // Fetch unread count (lebih cepat & akurat!)
+  const fetchUnreadCount = async () => {
+    if (!token) return;
+    const { ok, data } = await apiFetch(`${API}/notifications/unread-count`, {}, token);
+    if (ok && data?.unread_count !== undefined) {
+      setUnreadCount(data.unread_count);
+    }
+  }; 
+  
   useEffect(() => {
     if (!token) return;
+
     fetchNotifications();
-    const intv = setInterval(fetchNotifications, 5000);
+    fetchUnreadCount(); // panggil terpisah
+
+    const intv = setInterval(() => {
+      fetchNotifications();
+      fetchUnreadCount(); // ini yang bikin angka selalu up-to-date!
+    }, 5000);
+
     return () => clearInterval(intv);
   }, [token]);
-
   const handleLogout = () => {
     localStorage.removeItem("token");
     setToken(null);
@@ -280,15 +294,13 @@ export default function Dashboard() {
           <button
             key={star}
             onClick={() => interactive && onRate && onRate(star)}
-            className={`${
-              interactive ? "cursor-pointer hover:scale-110" : "cursor-default"
-            } transition-transform`}
+            className={`${interactive ? "cursor-pointer hover:scale-110" : "cursor-default"
+              } transition-transform`}
             disabled={!interactive}
           >
             <Star
-              className={`w-4 h-4 ${
-                star <= r ? "text-yellow-400 fill-current" : "text-slate-300"
-              }`}
+              className={`w-4 h-4 ${star <= r ? "text-yellow-400 fill-current" : "text-slate-300"
+                }`}
             />
           </button>
         ))}
@@ -437,8 +449,8 @@ export default function Dashboard() {
       .filter((l) =>
         historyQuery
           ? (l.book?.title || "")
-              .toLowerCase()
-              .includes(historyQuery.toLowerCase())
+            .toLowerCase()
+            .includes(historyQuery.toLowerCase())
           : true
       );
 
@@ -582,15 +594,30 @@ export default function Dashboard() {
                       </div>
                       {due && (
                         <div className="mt-2">
-                          {isOver ? (
-                            <span className="inline-block text-xs font-semibold px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
-                              Terlambat {Math.abs(daysLeft)} hari
-                            </span>
-                          ) : loan.status === "dipinjam" ? (
-                            <span className="inline-block text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              Sisa {daysLeft} hari
-                            </span>
-                          ) : null}
+                          {["dipinjam", "siap_diambil"].includes(loan.status) && due && (
+                            <div className="mt-2">
+                              {daysLeft >= 0 ? (
+                                <span className="inline-block text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  Sisa {daysLeft} hari
+                                </span>
+                              ) : (
+                                <span className="inline-block text-xs font-semibold px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200">
+                                  Terlambat {Math.abs(daysLeft)} hari
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Tampilkan info denda jika sudah selesai dan ada denda */}
+                          {!["dipinjam", "siap_diambil", "pending", "menunggu_validasi_pengembalian"].includes(loan.status) &&
+                            loan.denda > 0 && (
+                              <div className="mt-2">
+                                <span className="inline-block text-xs font-semibold px-2.5 py-1 rounded-full bg-red-50 text-red-700 border border-red-200">
+                                  Denda: Rp {new Intl.NumberFormat("id-ID").format(loan.denda)}
+                                  {daysLeft < 0 && ` (telat ${Math.abs(daysLeft)} hari)`}
+                                </span>
+                              </div>
+                            )}
                         </div>
                       )}
                     </div>
@@ -635,10 +662,10 @@ export default function Dashboard() {
                       {["rusak", "hilang", "ditolak"].includes(
                         loan.status
                       ) && (
-                        <span className="text-xs text-red-600 font-medium">
-                          Selesai
-                        </span>
-                      )}
+                          <span className="text-xs text-red-600 font-medium">
+                            Selesai
+                          </span>
+                        )}
                     </div>
                   </div>
                 </div>
@@ -723,11 +750,10 @@ export default function Dashboard() {
                       className="transition-transform hover:scale-110"
                     >
                       <Star
-                        className={`w-8 h-8 ${
-                          star <= reviewRating
-                            ? "text-yellow-400 fill-current"
-                            : "text-slate-300"
-                        }`}
+                        className={`w-8 h-8 ${star <= reviewRating
+                          ? "text-yellow-400 fill-current"
+                          : "text-slate-300"
+                          }`}
                       />
                     </button>
                   ))}
@@ -933,16 +959,14 @@ export default function Dashboard() {
                   <div className="absolute top-3 right-3">
                     <button
                       onClick={() => toggleFavorite(id)}
-                      className={`p-2 rounded-full ${
-                        isFavorites(id)
-                          ? "bg-red-500 text-white"
-                          : "bg-white/80 text-slate-600 hover:bg-red-500 hover:text-white"
-                      } transition-colors`}
+                      className={`p-2 rounded-full ${isFavorites(id)
+                        ? "bg-red-500 text-white"
+                        : "bg-white/80 text-slate-600 hover:bg-red-500 hover:text-white"
+                        } transition-colors`}
                     >
                       <Heart
-                        className={`w-4 h-4 ${
-                          isFavorites(id) ? "fill-current" : ""
-                        }`}
+                        className={`w-4 h-4 ${isFavorites(id) ? "fill-current" : ""
+                          }`}
                       />
                     </button>
                   </div>
@@ -962,11 +986,10 @@ export default function Dashboard() {
                   </div>
                   <div className="flex items-center justify-between">
                     <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        book.stock > 0
-                          ? "bg-green-100 text-green-700"
-                          : "bg-red-100 text-red-700"
-                      }`}
+                      className={`px-2 py-1 rounded-full text-xs font-medium ${book.stock > 0
+                        ? "bg-green-100 text-green-700"
+                        : "bg-red-100 text-red-700"
+                        }`}
                     >
                       {book.stock > 0
                         ? `Tersedia (${book.stock})`
@@ -1036,13 +1059,13 @@ export default function Dashboard() {
         {/* Bell / Notifikasi */}
         <div className="relative">
           <button
-            className="relative p-2 text-slate-600 hover:text-slate-800 rounded-lg hover:bg-slate-100"
+            className="relative p-2 text-slate-600 hover:text-slate-800 rounded-lg hover:bg-slate-100 transition-all"
             onClick={() => setShowNotifDropdown((s) => !s)}
           >
             <Bell className="w-5 h-5" />
             {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
-                {unreadCount > 9 ? "9+" : unreadCount}
+              <span className="absolute -top-1 -right-1 min-w-[20px] h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center animate-pulse">
+                {unreadCount > 99 ? "99+" : unreadCount}
               </span>
             )}
           </button>
@@ -1067,21 +1090,19 @@ export default function Dashboard() {
                   {notifications.map((n) => (
                     <li
                       key={n.id}
-                      className={`p-4 hover:bg-slate-50 cursor-pointer transition-colors border-l-4 ${
-                        n.is_read
-                          ? "bg-white border-l-transparent"
-                          : "bg-blue-50 border-l-blue-500"
-                      }`}
+                      className={`p-4 hover:bg-slate-50 cursor-pointer transition-colors border-l-4 ${n.is_read
+                        ? "bg-white border-l-transparent"
+                        : "bg-blue-50 border-l-blue-500"
+                        }`}
                       onClick={() => !n.is_read && markNotificationAsRead(n.id)}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1">
                           <p
-                            className={`text-sm ${
-                              n.is_read
-                                ? "text-slate-700"
-                                : "font-semibold text-slate-900"
-                            }`}
+                            className={`text-sm ${n.is_read
+                              ? "text-slate-700"
+                              : "font-semibold text-slate-900"
+                              }`}
                           >
                             {n.message}
                           </p>
@@ -1090,17 +1111,16 @@ export default function Dashboard() {
                           </p>
                           <p className="text-xs font-semibold uppercase mt-2">
                             <span
-                              className={`px-2 py-1 rounded-full ${
-                                n.status === "pending"
-                                  ? "bg-amber-100 text-amber-700"
-                                  : n.status === "siap_diambil"
+                              className={`px-2 py-1 rounded-full ${n.status === "pending"
+                                ? "bg-amber-100 text-amber-700"
+                                : n.status === "siap_diambil"
                                   ? "bg-cyan-100 text-cyan-700"
                                   : n.status === "dipinjam"
-                                  ? "bg-indigo-100 text-indigo-700"
-                                  : n.status === "dikembalikan"
-                                  ? "bg-emerald-100 text-emerald-700"
-                                  : "bg-slate-100 text-slate-700"
-                              }`}
+                                    ? "bg-indigo-100 text-indigo-700"
+                                    : n.status === "dikembalikan"
+                                      ? "bg-emerald-100 text-emerald-700"
+                                      : "bg-slate-100 text-slate-700"
+                                }`}
                             >
                               {n.status}
                             </span>
@@ -1176,11 +1196,10 @@ export default function Dashboard() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all ${
-                activeTab === tab.id
-                  ? "bg-white text-indigo-600 shadow-sm"
-                  : "text-slate-600 hover:text-slate-800"
-              }`}
+              className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all ${activeTab === tab.id
+                ? "bg-white text-indigo-600 shadow-sm"
+                : "text-slate-600 hover:text-slate-800"
+                }`}
             >
               <tab.icon className="w-4 h-4" />
               <span>{tab.label}</span>
